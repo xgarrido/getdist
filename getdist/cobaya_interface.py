@@ -7,7 +7,6 @@ from copy import deepcopy
 from collections import OrderedDict as odict
 import numpy as np
 
-
 # Conventions
 _label = "label"
 _prior = "prior"
@@ -76,8 +75,7 @@ def get_info_params(info):
 def get_range(param_info):
     # Sampled
     if is_sampled_param(param_info):
-        info_lims = dict([[l, param_info[_prior].get(l)]
-                          for l in ["min", "max", "loc", "scale"]])
+        info_lims = dict([[l, param_info[_prior].get(l)] for l in ["min", "max", "loc", "scale"]])
         if info_lims["min"] is not None or info_lims["max"] is not None:
             lims = [param_info[_prior].get("min"), param_info[_prior].get("max")]
         elif info_lims["loc"] is not None or info_lims["scale"] is not None:
@@ -141,6 +139,7 @@ def get_sampler_type(filename_or_info):
     default_sampler_for_chain_type = "mcmc"
     sampler = list(filename_or_info.get(_sampler, [default_sampler_for_chain_type]))[0]
     return {"mcmc": "mcmc", "polychord": "nested", "minimize": "minimize"}[sampler]
+
 
 def get_sample_label(filename_or_info):
     if isinstance(filename_or_info, string_types):

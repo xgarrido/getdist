@@ -129,11 +129,10 @@ setup(name='GetDist',
       test_suite='getdist.tests',
       package_data=package_data,
       install_requires=[
-          'packaging',
           'numpy',
-          'matplotlib',
+          'matplotlib (>=2.2.0)',
           'six',
-          "scipy (>=0.11.0)"],
+          "scipy (>=1.0.0)"],
       # PySide or pyside2 is needed for the GUI
       #  optional (for faster file read)
       # 'pandas (>=0.14.0)'

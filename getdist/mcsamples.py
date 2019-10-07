@@ -105,12 +105,6 @@ def loadMCSamples(file_root, ini=None, jobItem=None, no_cache=False, settings={}
     return samples
 
 
-def loadCobayaSamples(*args, **kwargs):
-    logging.warning("'loadCobayaSamples' will be deprecated in the future. "
-                    "Use 'MCSamplesFromCobaya' instead.")
-    return MCSamplesFromCobaya(*args, **kwargs)
-
-
 def MCSamplesFromCobaya(info, collections, name_tag=None,
                         ignore_rows=0, ini=None, settings={}):
     """
@@ -484,9 +478,6 @@ class MCSamples(Chains):
         if ini:
             self.initParameters(ini)
         if doUpdate and self.samples is not None: self.updateBaseStatistics()
-
-    def isBurnRemoved(self):
-        return self.propertiesIni().bool('burn_removed')
 
     def readChains(self, files_or_samples, weights=None, loglikes=None):
         """

@@ -4,6 +4,7 @@ import random
 import numpy as np
 from getdist.paramnames import ParamNames, ParamInfo, escapeLatex
 from getdist.convolve import autoConvolve
+import getdist.cobaya_interface as cobaya
 import pickle
 import six
 
@@ -12,10 +13,9 @@ print_load_details = True
 
 try:
     import pandas
-    from distutils.version import LooseVersion
 
-    use_pandas = LooseVersion(pandas.__version__) > LooseVersion("0.14.0")
-except:
+    use_pandas = True
+except ImportError:
     use_pandas = False
 
 
@@ -852,7 +852,6 @@ class Chains(WeightedSamples):
         :param kwargs: extra options for :class:`~.chains.WeightedSamples`'s constructor
 
         """
-        from getdist.cobaya_interface import get_sampler_type, _separator_files
 
         self.chains = None
         WeightedSamples.__init__(self, **kwargs)
@@ -862,7 +861,7 @@ class Chains(WeightedSamples):
         if not paramNamesFile and root:
             mid = not root.endswith((os.sep, "/"))
             endings = ['.paramnames', ('__' if mid else '') + 'full.yaml',
-                       (_separator_files if mid else '') + 'updated.yaml']
+                       (cobaya._separator_files if mid else '') + 'updated.yaml']
             try:
                 paramNamesFile = next(
                     root + ending for ending in endings if os.path.exists(root + ending))
@@ -874,18 +873,15 @@ class Chains(WeightedSamples):
         if renames is not None:
             self.updateRenames(renames)
         # If Cobaya sample and label not set manually via keyword, try to load from yaml
-        if ((not getattr(self, "label", False) and
-             isinstance(paramNamesFile, six.string_types) and
-             paramNamesFile.endswith(".yaml"))):
-            from getdist.cobaya_interface import get_sample_label
-            self.label = get_sample_label(paramNamesFile)
+        if not self.label and isinstance(paramNamesFile, six.string_types) and paramNamesFile.endswith(".yaml"):
+            self.label = cobaya.get_sample_label(paramNamesFile)
         # Sampler that generated the chain -- assume "mcmc"
         if isinstance(sampler, six.string_types):
             if sampler.lower() not in ["mcmc", "nested", "uncorrelated"]:
                 raise ValueError("Unknown sampler type %s" % sampler)
             self.sampler = sampler.lower()
         elif isinstance(paramNamesFile, six.string_types) and paramNamesFile.endswith("yaml"):
-            self.sampler = get_sampler_type(paramNamesFile)
+            self.sampler = cobaya.get_sampler_type(paramNamesFile)
         else:
             self.sampler = "mcmc"
 
