@@ -177,9 +177,9 @@ class GetDistPlotSettings(object):
         self.lw_contour = self.lw1 * 0.6
         self.lw_likes = self.subplot_size_inch / 6.0
         self.scatter_size = 3
-        if size_inch > 4: self.scatter_size = size_inch * 2
+        if size_inch > 4:
+            self.scatter_size = size_inch * 2
         self.colorbar_axes_fontsize = self.axes_fontsize
-        if self.colorbar_label_rotation:  self.colorbar_label_pad = size_inch * 3
 
     def rcSizes(self, axes_fontsize=None, lab_fontsize=None, legend_fontsize=None):
         """
@@ -2223,8 +2223,11 @@ class GetDistPlotter(object):
         """
         if label_rotation is None:
             label_rotation = self.settings.colorbar_label_rotation
+        kwargs = {}
+        if label_rotation and 10 < abs(label_rotation) < 170:
+            kwargs['va'] = 'bottom'
         cb.set_label(param.latexLabel(), fontsize=self.settings.lab_fontsize,
-                     rotation=label_rotation, labelpad=self.settings.colorbar_label_pad)
+                     rotation=label_rotation, labelpad=self.settings.colorbar_label_pad, **kwargs)
         plt.setp(cb.ax.get_ymajorticklabels(), fontsize=self.settings.colorbar_axes_fontsize)
 
     def _makeParamObject(self, names, samples, obj=None):
