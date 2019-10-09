@@ -93,7 +93,7 @@ class GetDistTest(unittest.TestCase):
 
     def testBestFit(self):
         samples = self.testdists.bimodal[0].MCSamples(12000, logLikes=True)
-        bestSample = samples.getParamBestFitDict(best_fit_sample=True)
+        bestSample = samples.getParamBestFitDict(best_sample=True)
         self.assertAlmostEqual(bestSample['loglike'], 1.708, 2)
 
     def testTables(self):
