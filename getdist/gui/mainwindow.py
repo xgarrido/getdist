@@ -33,7 +33,7 @@ if pyside_version == 2:
     from PySide2.QtWidgets import QListWidget, QMainWindow, QDialog, QApplication, QAbstractItemView, QAction, \
         QTabWidget, QWidget, QComboBox, QPushButton, QShortcut, QCheckBox, QRadioButton, QGridLayout, QVBoxLayout, \
         QSplitter, QHBoxLayout, QToolBar, QPlainTextEdit, QScrollArea, QFileDialog, QMessageBox, QTableWidgetItem, \
-        QLabel, QTableWidget, QListWidgetItem, QTextEdit, QMenu, QToolButton
+        QLabel, QTableWidget, QListWidgetItem, QTextEdit
 
     os.environ['QT_API'] = 'pyside2'
 
@@ -51,17 +51,29 @@ else:
 
     import PySide
     from PySide.QtCore import Qt, SIGNAL, QSize, QSettings, QCoreApplication
-    from PySide.QtGui import QListWidget, QMainWindow, QDialog, QApplication, QAbstractItemView, QAction, QMenu, \
+    from PySide.QtGui import QListWidget, QMainWindow, QDialog, QApplication, QAbstractItemView, QAction, \
         QTabWidget, QWidget, QComboBox, QPushButton, QShortcut, QCheckBox, QRadioButton, QGridLayout, QVBoxLayout, \
         QSplitter, QHBoxLayout, QToolBar, QPlainTextEdit, QScrollArea, QFileDialog, QMessageBox, QTableWidgetItem, \
-        QLabel, QTableWidget, QListWidgetItem, QTextEdit, QIcon, QKeySequence, QFont, QTextOption, QImage, QPixmap, \
-        QToolButton
+        QLabel, QTableWidget, QListWidgetItem, QTextEdit, QIcon, QKeySequence, QFont, QTextOption, QImage, QPixmap
 
     os.environ['QT_API'] = 'pyside'
 
 
 class GuiSelectionError(Exception):
     pass
+
+
+class QStatusLogger(logging.Handler):
+    def __init__(self, parent):
+        super(QStatusLogger, self).__init__(level=logging.WARNING)
+        self.widget = parent
+
+    def emit(self, record):
+        msg = self.format(record)
+        self.widget.showMessage(msg, color='red')
+
+    def write(self, m):
+        pass
 
 
 class RootListWidget(QListWidget):
@@ -92,7 +104,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("GetDist GUI")
         self.setWindowIcon(self._icon('Icon', False))
 
-        if base_dir is None: base_dir = batchjob.getCodeRootPath()
+        if base_dir is None:
+            base_dir = batchjob.getCodeRootPath()
         os.chdir(base_dir)
         self.updating = False
         self.app = app
@@ -137,6 +150,10 @@ class MainWindow(QMainWindow):
 
         self._resetGridData()
         self._resetPlotData()
+
+        self.log_handler = QStatusLogger(self)
+        logging.getLogger().addHandler(self.log_handler)
+        self._last_color = None
 
         Dirs = self.getSettings().value('directoryList')
         lastDir = self.getSettings().value('lastSearchDirectory')
@@ -291,8 +308,13 @@ class MainWindow(QMainWindow):
         self.statusBar().setStyleSheet("height:1em")
         self.statusBar().showMessage("Ready", 2000)
 
-    def showMessage(self, msg=''):
-        self.statusBar().showMessage(msg)
+    def showMessage(self, msg='', color=None):
+        if not msg and not color and self._last_color:
+            return
+        self._last_color = color
+        bar = self.statusBar()
+        bar.showMessage(msg)
+        bar.setStyleSheet("color: %s" % (color or "black"))
         if msg:
             self.statusBar().repaint()
             QCoreApplication.processEvents()
@@ -602,9 +624,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Script", "No script to save")
             return
 
-        filename, _ = QFileDialog.getSaveFileName(
-            self, "Choose a file name", '.', "Python (*.py)")
-        if not filename: return
+        filename, _ = QFileDialog.getSaveFileName(self, "Choose a file name", '.', "Python (*.py)")
+        if not filename:
+            return
         filename = str(filename)
         logging.debug("Export script to %s" % filename)
         with open(filename, 'w') as f:
@@ -1006,7 +1028,8 @@ class MainWindow(QMainWindow):
             self.getPlotter(chain_dir=dirName)
 
             self._updateComboBoxRootname(root_list)
-            if save: self.saveDirectories()
+            if save:
+                self.saveDirectories()
         except Exception as e:
             self.errorReport(e, caption="Open chains", capture=True)
             return False
@@ -1354,7 +1377,8 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, caption, type(e).__name__ + ': ' + str(e) + "\n\n" + msg)
             del msg
 
-        if not isinstance(e, GuiSelectionError) and not capture: raise
+        if not isinstance(e, GuiSelectionError) and not capture:
+            raise
 
     def closePlots(self):
         if self.plotter.fig is not None:
@@ -1365,7 +1389,8 @@ class MainWindow(QMainWindow):
         """
         Slot function called when pushButtonPlot is pressed.
         """
-        if self.updating: return
+        if self.updating:
+            return
         self.showMessage("Generating plot....")
         actionText = "plot"
         try:
@@ -1397,9 +1422,13 @@ class MainWindow(QMainWindow):
             if override_setting:
                 script += ('analysis_settings = %s\n' % override_setting).replace(', ', ",\n" + " " * 21)
             if len(items_x) > 1 or len(items_y) > 1:
-                plot_func = 'getSubplotPlotter'
+                plot_func = 'getSubplotPlotter('
+                if not self.plotter.settings.fig_width_inch and len(items_y) and \
+                        not (len(items_x) > 1 and len(items_y) > 1) and not self.trianglePlot.isChecked():
+                    plot_func += 'subplot_size=3.5, '
+
             else:
-                plot_func = 'getSinglePlotter'
+                plot_func = 'getSinglePlotter('
 
             for root in roots:
                 self.plotter.sampleAnalyser.addRoot(self.root_infos[root])
@@ -1417,11 +1446,11 @@ class MainWindow(QMainWindow):
                 chain_dirs = "r'%s'" % chain_dirs[0].rstrip('\\').rstrip('/')
 
             if override_setting:
-                script += "g=gplot.%s(chain_dir=%s,analysis_settings=analysis_settings)\n" % (plot_func, chain_dirs)
+                script += "g=gplot.%schain_dir=%s,analysis_settings=analysis_settings)\n" % (plot_func, chain_dirs)
             elif self.iniFile:
-                script += "g=gplot.%s(chain_dir=%s, analysis_settings=r'%s')\n" % (plot_func, chain_dirs, self.iniFile)
+                script += "g=gplot.%schain_dir=%s, analysis_settings=r'%s')\n" % (plot_func, chain_dirs, self.iniFile)
             else:
-                script += "g=gplot.%s(chain_dir=%s)\n" % (plot_func, chain_dirs)
+                script += "g=gplot.%schain_dir=%s)\n" % (plot_func, chain_dirs)
 
             if self.custom_plot_settings:
                 for key, value in six.iteritems(self.custom_plot_settings):
@@ -1535,7 +1564,8 @@ class MainWindow(QMainWindow):
                             labels = self.plotter._default_legend_labels(None, roots)
                             self.plotter.add_legend(labels)
                             script += 'g.add_legend(%s)\n' % labels
-                            plt.tight_layout()
+                            if not self.settings.constrained_layout:
+                                self.plotter.fig.tight_layout()
                         else:
                             script += "pairs = %s\n" % pairs
                             self.plotter.plots_2d(roots, param_pairs=pairs, filled=filled, shaded=shaded)
@@ -1588,10 +1618,13 @@ class MainWindow(QMainWindow):
             i = 0
             while True:
                 item = self.plotWidget.layout().takeAt(i)
-                if item is None: break
+                if item is None:
+                    break
                 del item
-            if hasattr(self, "canvas"): del self.canvas
-            if hasattr(self, "toolbar"): del self.toolbar
+            if hasattr(self, "canvas"):
+                del self.canvas
+            if hasattr(self, "toolbar"):
+                del self.toolbar
             self.canvas = FigureCanvas(self.plotter.fig)
             if pyside_version > 1 or sys.platform != "darwin":
                 # for some reason the toolbar used to crash on a Mac
@@ -1679,6 +1712,7 @@ class MainWindow(QMainWindow):
                     break
 
             self.exportAct.setEnabled(True)
+
         except SyntaxError as e:
             QMessageBox.critical(self, "Plot script", type(e).__name__ + ': %s\n %s' % (e, e.text))
         except Exception as e:
@@ -2070,6 +2104,7 @@ def run_gui():
         level = logging.DEBUG
     form = '%(asctime).19s [%(levelname)s]\t[%(filename)s:%(lineno)d]\t\t%(message)s'
     logging.basicConfig(level=level, format=form)
+    logging.captureWarnings(True)
 
     sys.argv[0] = 'GetDist GUI'
     app = QApplication(sys.argv)

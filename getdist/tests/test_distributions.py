@@ -265,7 +265,8 @@ def compare_method(probs, nx=2, fname='', **kwargs):
             elif kwargs.get('nsamp') > 5000:
                 ax.set_ylim(4e-5, 6e-3)
     plt.subplots_adjust(wspace=0, hspace=0)
-    if fname: fig.savefig(fname, bbox_inches='tight')
+    if fname:
+        fig.savefig(fname, bbox_inches='tight')
 
 
 def join_subplots(ax_array):

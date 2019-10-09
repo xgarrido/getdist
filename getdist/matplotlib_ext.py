@@ -1,4 +1,6 @@
+import matplotlib
 from matplotlib import ticker
+import math
 
 
 class SciFuncFormatter(ticker.Formatter):
@@ -16,83 +18,97 @@ class SciFuncFormatter(ticker.Formatter):
 
 class BoundedMaxNLocator(ticker.MaxNLocator):
     # Tick locator class that only returns ticks within bounds, and if pruned, pruned not to overlap ends of axes
-    # Also tries to correct default (simple x3 heuristic) for long x tick labels
-    # check_long_tick_labels should be set if x axis and no tick rotation (or y and axis-aligned rotation)
+    # Also tries to correct default (simple x3 heuristic) for long tick labels
 
-    def __init__(self, nbins='auto', prune='both', check_long_tick_labels=True, **kwargs):
+    def __init__(self, nbins='auto', prune=True, **kwargs):
         self.bounded_prune = prune
-        self.check_long_tick_labels = check_long_tick_labels
         super(BoundedMaxNLocator, self).__init__(nbins=nbins, **kwargs)
+
+    def _bounded_prune(self, locs, vmin, vmax, label_len):
+        if len(locs) > 1 and self.bounded_prune:
+            if locs[0] - vmin < label_len * 0.5:
+                locs = locs[1:]
+            if vmax - locs[-1] < label_len * 0.5 and len(locs) > 1:
+                locs = locs[:-1]
+        return locs
 
     def tick_values(self, vmin, vmax):
         # Max N locator will produce locations outside vmin, vmax, so even if pruned
         # there can be points very close to the actual bounds. Let's cut them out.
+        # Also account for tick labels with aspect ratio > 3 (default often-violated heuristic)
+        # - use better heuristic based on number of characters in label and typical font aspect ratio
 
-        locs = super(BoundedMaxNLocator, self).tick_values(vmin, vmax)
-        locs = [x for x in locs if vmin <= x <= vmax]
+        _nbins = self._nbins
+        _min_ticks = self._min_n_ticks
 
         axes = self.axis.axes
-        ends = axes.transAxes.transform([[0, 0], [1, 0]])
-        length = ((ends[1][0] - ends[0][0]) / axes.figure.dpi) * 72
         tick = self.axis._get_tick(True)
-        size_ratio = tick.label1.get_size() / length
-
-        if self.check_long_tick_labels and \
-                isinstance(self.axis.major.formatter, ticker.ScalarFormatter) and len(locs) > 1:
-
-            font_aspect = 0.65
-            char_frac = font_aspect * size_ratio
-
-            formatter = self.axis.major.formatter
-
-            def _get_Label_len():
-                formatter.set_locs(locs)
-                # get non-latex version of label
-                form = formatter.format
-                i = form.index('%')
-                i2 = form.index('f', i)
-                label = form[i:i2 + 1] % locs[0]
-                char_len = len(label)
-                if '.' in label:
-                    char_len -= 0.4
-                return char_frac * char_len * (vmax - vmin)
-
-            label_len = _get_Label_len()
-            if self.check_long_tick_labels and locs[1] - locs[0] < label_len * 1.1:
-                # check for long labels not accounted for the the current "*3" aspect ratio heuristic for labels
-                _nbins = self._nbins
-                try:
-                    self._nbins = max(1, int((len(locs) - 1) * (locs[1] - locs[0]) / label_len / 1.4)) + 1
-                    locs = super(BoundedMaxNLocator, self).tick_values(vmin, vmax)
-                    locs = [x for x in locs if vmin <= x <= vmax]
-                    label_len = _get_Label_len()
-                finally:
-                    self._nbins = _nbins
+        rotation = tick._labelrotation[1]
+        if isinstance(self.axis, matplotlib.axis.YAxis):
+            rotation += 90
+            ends = axes.transAxes.transform([[0, 0], [0, 1]])
+            length = ((ends[1][1] - ends[0][1]) / axes.figure.dpi) * 72
         else:
-            _get_Label_len = None
-            if self.check_long_tick_labels:
-                label_len = (locs[-1] - locs[0]) / (max(len(locs), 2) - 1)
-            else:
-                label_len = size_ratio * (vmax - vmin) * 1.5
+            ends = axes.transAxes.transform([[0, 0], [1, 0]])
+            length = ((ends[1][0] - ends[0][0]) / axes.figure.dpi) * 72
+        size_ratio = tick.label1.get_size() / length
+        cos_rotation = abs(math.cos(math.radians(rotation)))
+        font_aspect = 0.65 * cos_rotation
+        formatter = self.axis.major.formatter
 
-        def prune(_locs):
-            if len(_locs) > 1 and self.bounded_prune:
-                if self.bounded_prune in ['both', 'lower'] and _locs[0] - vmin < label_len * 0.5:
-                    _locs = _locs[1:]
-                if self.bounded_prune in ['both', 'upper'] and vmax - _locs[-1] < label_len * 0.5 and len(_locs) > 1:
-                    _locs = _locs[:-1]
-            return _locs
+        # first guess
+        label_len = min(0.9, size_ratio * max(3 * font_aspect, 1.5)) * (vmax - vmin)
 
-        locs = prune(locs)
-        if len(locs) == 1 and _get_Label_len and label_len < (vmax - vmin) / 3.0:
-            _nbins = self._nbins
-            try:
-                self._nbins = 2
-                locs = super(BoundedMaxNLocator, self).tick_values(vmin + label_len / 2, vmax - label_len / 2)
-                locs = [x for x in locs if vmin <= x <= vmax]
+        delta = label_len / 2 if self.bounded_prune else 0
+
+        label_space = label_len * 1.35
+
+        try:
+            self._nbins = int((vmax - vmin - 2 * delta) / label_space) + 1
+            if self._nbins < 3:
+                self._nbins = int((vmax - vmin - 2 * delta) / (1.1 * label_len)) + 1
+            if _nbins != 'auto':
+                self._nbins = min(self._nbins, _nbins)
+
+            locs = super(BoundedMaxNLocator, self).tick_values(vmin + delta, vmax - delta)
+            locs = [x for x in locs if vmin <= x <= vmax]
+
+            if cos_rotation > 0.05 and isinstance(formatter, ticker.ScalarFormatter) and len(locs) > 1:
+
+                def _get_Label_len():
+                    formatter.set_locs(locs)
+                    # get non-latex version of label
+                    form = formatter.format
+                    i = form.index('%')
+                    i2 = form.index('f', i)
+                    label = form[i:i2 + 1] % locs[0]
+                    char_len = len(label)
+                    if '.' in label:
+                        char_len -= 0.4
+                    return size_ratio * max(3.0, char_len * font_aspect) * (vmax - vmin)
+
                 label_len = _get_Label_len()
-                locs = prune(locs)
-            finally:
-                self._nbins = _nbins
+
+                if locs[1] - locs[0] < label_len * 1.1:
+                    # check for long labels not accounted for the the current "*3" aspect ratio heuristic for labels
+                    delta = label_len / 2 if self.bounded_prune else 0
+                    self._nbins = int((vmax - vmin - 2 * delta) / (1.1 * label_len)) + 1
+                    while self._nbins:
+                        locs = super(BoundedMaxNLocator, self).tick_values(vmin + delta, vmax - delta)
+                        locs = [x for x in locs if vmin <= x <= vmax]
+                        label_len = _get_Label_len()
+                        locs = self._bounded_prune(locs, vmin, vmax, label_len)
+                        if len(locs) < 2 or locs[1] - locs[0] > label_len * 1.1:
+                            break
+                        self._nbins = self._nbins - 1
+                        if self._nbins == 1:
+                            self._min_n_ticks = 1
+                else:
+                    locs = self._bounded_prune(locs, vmin, vmax, label_len)
+            else:
+                locs = self._bounded_prune(locs, vmin, vmax, label_len)
+        finally:
+            self._nbins = _nbins
+            self._min_n_ticks = _min_ticks
 
         return locs

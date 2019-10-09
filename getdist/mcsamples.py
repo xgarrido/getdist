@@ -1645,7 +1645,8 @@ class MCSamples(Chains):
         has_prior = parx.has_limits or pary.has_limits
 
         corr = self.getCorrelationMatrix()[j2][j]
-        if corr == 1: logging.warning('Parameters are 100%% correlated: %s, %s', parx.name, pary.name)
+        if corr == 1:
+            logging.warning('Parameters are 100%% correlated: %s, %s', parx.name, pary.name)
 
         logging.debug('Doing 2D: %s - %s', parx.name, pary.name)
         logging.debug('sample x_err, y_err, correlation: %s, %s, %s', parx.err, pary.err, corr)
@@ -2303,7 +2304,7 @@ class MCSamples(Chains):
             self.ranges.setRange(name, range)
         return super(MCSamples, self).addDerived(paramVec, name, label=label, comment=comment)
 
-    def getParamBestFitDict(self, best_fit_sample=False, want_derived=True, want_fixed=True, max_posterior=True):
+    def getParamBestFitDict(self, best_sample=False, want_derived=True, want_fixed=True, max_posterior=True):
         """
         Gets an ordered dictionary of parameter values for the best fit point,
         assuming calculated results from mimimization runs in .minimum (max posterior) .bestfit (max likelihood) files exists.
@@ -2311,13 +2312,13 @@ class MCSamples(Chains):
         Can also get the best-fit (max posterior) sample, which typically has a likelihood that differs significantly
         from the true best fit in high dimensions.
 
-        :param best_fit_sample: load from global minimum files (False, default) or using best-fit sample (True)
+        :param best_sample: load from global minimum files (False, default) or using maximum posterior sample (True)
         :param want_derived: include derived parameters
         :param want_fixed: also include values of any fixed parameters
         :param max_posterior: whether to get maximum posterior (from .minimum file) or maximum likelihood (from .bestfit file)
         :return: ordered dictionary of parameter values
         """
-        if best_fit_sample:
+        if best_sample:
             if not max_posterior:
                 raise ValueError('best_fit_sample is only maximum posterior')
             return self.getParamSampleDict(np.argmin(self.loglikes))

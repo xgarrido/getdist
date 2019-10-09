@@ -42,17 +42,21 @@ class GetDistPlotSettings(object):
     :ivar axis_marker_ls: The line style for a marker
     :ivar axis_marker_lw: The line width for a marker
     :ivar axis_tick_powerlimits: exponents at which to use scientific notation for axis tick labels
+    :ivar axis_tick_max_labels: maximum number of tick labels per axis
+    :ivar axis_tick_x_rotation: The rotation for the x label in degrees
+    :ivar axis_tick_y_rotation: The rotation for the y label in degrees
     :ivar colorbar_label_pad: padding for the colorbar labels
     :ivar colorbar_label_rotation: angle to rotate colorbar label (set to zero if -90 default gives layout problem)
     :ivar colorbar_rotation: angle to rotate colorbar tick labels
     :ivar colormap: a `Matplotlib color map <https://www.scipy.org/Cookbook/Matplotlib/Show_colormaps>`_ for shading
     :ivar colormap_scatter: a `Matplotlib color map <https://www.scipy.org/Cookbook/Matplotlib/Show_colormaps>`_ for 3D plots
-    :ivar constrained_layout: use matplotlib's constrained-layout to fit plots within the figure
+    :ivar constrained_layout: use matplotlib's constrained-layout to fit plots within the figure and avoid overlaps
     :ivar default_dash_styles: dict mapping line styles to detailed dash styles, default:  {'--': (3, 2), '-.': (4, 1, 1, 1)}
     :ivar fig_width_inch: The width of the figure in inches
     :ivar figure_legend_frame: draw box around figure legend
     :ivar figure_legend_loc: The location for the figure legend
     :ivar figure_legend_ncol: number of columns for figure legend
+    :ivar figure_legend_new_ax: put figure legend in separate axis; can try to avoid tight_layout/constrainted layout issues
     :ivar legend_colored_text: use colored text for legend labels rather than separate color blocks
     :ivar legend_fontsize: The font size for the legend
     :ivar legend_frac_subplot_line: fraction of _subplot size to use per line for spacing figure legend
@@ -78,12 +82,10 @@ class GetDistPlotSettings(object):
     :ivar shade_meanlikes: 2D shading uses mean likelihoods rather than marginalized density
     :ivar solid_colors: List of default colors for filled 2D plots. Each element is either a color, or a tuple of values for different contour levels.
     :ivar solid_contour_palefactor: factor by which to make 2D outer filled contours paler when only specifying one contour color
-    :ivar tight_gap_fraction: fraction of plot width for closest tick to the edge
-    :ivar tight_layout: use tight_layout to layout and remove white space
+    :ivar tight_layout: use tight_layout to layout, avoid overlaps and remove white space; if it doesn't work try constrained_layout
     :ivar title_limit: show parameter limits over 1D plots, 1 for first limit (68% default), 2 second, etc.
     :ivar title_limit_labels: whether or not to include parameter label when adding limits above 1D plots
     :ivar title_limit_fontsize: font size to use for limits in plot titles
-    :ivar x_label_rotation: The rotation for the x label in degrees.
     """
 
     def __init__(self, subplot_size_inch=2, fig_width_inch=None):
@@ -102,15 +104,12 @@ class GetDistPlotSettings(object):
         self.norm_prob_label = 'P'
         self.prob_y_ticks = False
         self.norm_1d_density = False
-
-        self.lineM = ['-k', '-r', '-b', '-g', '-m', '-c', '-y', '--k', '--r', '--b', '--g',
-                      '--m']  # : line styles/colors
+        # : line styles/colors
+        self.lineM = ['-k', '-r', '-b', '-g', '-m', '-c', '-y', '--k', '--r', '--b', '--g', '--m']
         self.plot_args = None
-        self.solid_colors = ['#006FED', '#E03424', 'gray', '#009966', '#000866', '#336600', '#006633', 'm',
-                             'r']
+        self.solid_colors = ['#006FED', '#E03424', 'gray', '#009966', '#000866', '#336600', '#006633', 'm', 'r']
         self.default_dash_styles = {'--': (3, 2), '-.': (4, 1, 1, 1)}
         self.line_labels = True
-        self.x_label_rotation = 0
         self.num_shades = 80
         self.shade_level_scale = 1.8  # contour levels at [0:1:spacing]**shade_level_scale
         self.fig_width_inch = fig_width_inch  # if you want to force specific fixed width
@@ -128,7 +127,6 @@ class GetDistPlotSettings(object):
         self.setWithSubplotSize(subplot_size_inch)
 
         self.param_names_for_labels = None
-        self.tight_gap_fraction = 0.13  # space between ticks and the edge
 
         self.legend_colored_text = False
         self.legend_loc = 'best'
@@ -136,6 +134,7 @@ class GetDistPlotSettings(object):
         self.legend_frame = True
         self.figure_legend_frame = True
         self.figure_legend_ncol = 1
+        self.figure_legend_new_ax = False
 
         self.legend_rect_border = False
         self.legend_position_config = 1
@@ -154,6 +153,9 @@ class GetDistPlotSettings(object):
         self.axis_marker_lw = 0.5
 
         self.axis_tick_powerlimits = (-4, 5)
+        self.axis_tick_max_labels = 7
+        self.axis_tick_x_rotation = 0
+        self.axis_tick_y_rotation = 0
 
         self.title_limit = 0
         self.title_limit_labels = True
@@ -167,7 +169,8 @@ class GetDistPlotSettings(object):
         :param size_inch: The size to set in inches; is ignored if size_mm is set.
         :param size_mm: None if not used, otherwise the size in millimeters we want to set for the subplot.
         """
-        if size_mm: size_inch = size_mm * 0.0393700787
+        if size_mm:
+            size_inch = size_mm * 0.0393700787
         self.subplot_size_inch = size_inch
         self.lab_fontsize = 7 + 2 * self.subplot_size_inch
         self.axes_fontsize = 4 + 2 * self.subplot_size_inch
@@ -254,7 +257,8 @@ def getSubplotPlotter(subplot_size=2, width_inch=None, **kwargs):
     plotter.settings.setWithSubplotSize(subplot_size)
     if width_inch:
         plotter.settings.fig_width_inch = width_inch
-        if not kwargs.get('settings'): plotter.settings.rcSizes()
+        if not kwargs.get('settings'):
+            plotter.settings.rcSizes()
     if subplot_size < 3 and kwargs.get('settings') is None and not width_inch:
         plotter.settings.axes_fontsize += 2
         plotter.settings.colorbar_axes_fontsize += 2
@@ -843,7 +847,7 @@ class GetDistPlotter(object):
         ax = ax or self._subplot_number(0)
         if density is None:
             param1, param2 = self.get_param_array(root, param_pair or [param1, param2])
-            ax.params = (param1, param2)
+            ax.getdist_params = (param1, param2)
             density = self.sampleAnalyser.get_density_grid(root, param1, param2,
                                                            conts=self.settings.num_plot_contours,
                                                            likes=self.settings.shade_meanlikes)
@@ -1235,11 +1239,13 @@ class GetDistPlotter(object):
         :param x: True if x axis, False for y axis
         """
         self._SetAxisFormatter(axis, x)
+        self._auto_ticks(axis)
 
-        self._auto_ticks(axis, check_long_tick_labels=x and abs(self.settings.x_label_rotation) < 30)
-        if x and self.settings.x_label_rotation != 0:
-            plt.setp(axis.get_ticklabels(), rotation=self.settings.x_label_rotation)
-        axis.set_tick_params(which='major', labelsize=self.settings.axes_fontsize)
+        axis.set_tick_params(which='major', labelsize=self.settings.axes_fontsize,
+                             labelrotation=self.settings.axis_tick_x_rotation if x else self.settings.axis_tick_y_rotation)
+        if not x and abs(self.settings.axis_tick_y_rotation - 90) < 45:
+            for ticklabel in axis.get_ticklabels():
+                ticklabel.set_verticalalignment("center")
         axis.get_offset_text().set_fontsize(self.settings.axes_fontsize * 3 / 4 if
                                             not isinstance(self.settings.axes_fontsize, six.string_types) and
                                             self.settings.axes_fontsize > 7 else self.settings.axes_fontsize)
@@ -1442,17 +1448,27 @@ class GetDistPlotter(object):
         else:
             self.fig = plt.figure(figsize=figsize)
 
-        if hasattr(self.fig, 'add_gridspec'):
-            self.gridspec = self.fig.add_gridspec(self.plot_row, self.plot_col)
+        if self.settings.figure_legend_new_ax:
+            ratios = (0.1, 1, 0.001)  # keep empty slots for possible legends outside main subplot figure
+            # set_height_ratios later appears not to work
+            if hasattr(self.fig, 'add_gridspec'):
+                # outer grid can hold figure legends etc, gridspec holds subplots
+                self.outer_gridspec = self.fig.add_gridspec(3, 1, height_ratios=ratios, wspace=0, hspace=0)
+                self.gridspec = self.outer_gridspec[1].subgridspec(self.plot_row, self.plot_col)
+            else:
+                self.outer_gridspec = plt.GridSpec(3, 1, height_ratios=ratios, wspace=0, hspace=0,
+                                                   figure=self.fig)
+                self.gridspec = matplotlib.gridspec.GridSpecFromSubplotSpec(nrows=self.plot_row, ncols=self.plot_col,
+                                                                            subplot_spec=self.outer_gridspec[1])
         else:
             self.gridspec = plt.GridSpec(nrows=self.plot_row, ncols=self.plot_col, figure=self.fig)
 
         if self.settings.constrained_layout and (sharex or sharey):
             kwargs = {}
             if sharey:
-                kwargs = {'w_pad': 0, 'wpsace': 0}
+                kwargs = {'w_pad': 0, 'wspace': 0}
             if sharex:
-                kwargs = {'h_pad': 0, 'h_space': 0}
+                kwargs.update({'h_pad': 0, 'hspace': 0})
             self.fig.set_constrained_layout_pads(**kwargs)
 
         self.subplots = np.ndarray((self.plot_row, self.plot_col), dtype=object)
@@ -1538,7 +1554,8 @@ class GetDistPlotter(object):
         return p.latexLabel()
 
     def add_legend(self, legend_labels, legend_loc=None, line_offset=0, legend_ncol=None, colored_text=None,
-                   figure=False, ax=None, label_order=None, align_right=False, fontsize=None):
+                   figure=False, ax=None, label_order=None, align_right=False, fontsize=None,
+                   figure_legend_outside=True, bbox_to_anchor=None):
         """
         Add a legend to the axes or figure.
 
@@ -1554,6 +1571,8 @@ class GetDistPlotter(object):
         :param label_order: minus one to show legends in reverse order that lines were added, or a list giving specific order of line indices
         :param align_right: True to align legend text at the right
         :param fontsize: The size of the font, default from settings
+        :param figure_legend_outside: whether figure legend is outside or inside the subplots box
+        :param bbox_to_anchor: specific reference location for legend placement (figure_legend_outside ignored)
         :return: a :class:`matplotlib:matplotlib.legend.Legend` instance
         """
         if legend_loc is None:
@@ -1561,8 +1580,10 @@ class GetDistPlotter(object):
                 legend_loc = self.settings.figure_legend_loc
             else:
                 legend_loc = self.settings.legend_loc
-        if legend_ncol is None: legend_ncol = self.settings.figure_legend_ncol
-        if colored_text is None: colored_text = self.settings.legend_colored_text
+        if legend_ncol is None:
+            legend_ncol = self.settings.figure_legend_ncol
+        if colored_text is None:
+            colored_text = self.settings.legend_colored_text
         lines = []
         if len(self.contours_added) == 0:
             for i in enumerate(legend_labels):
@@ -1578,14 +1599,43 @@ class GetDistPlotter(object):
             args['handlelength'] = 0
             args['handletextpad'] = 0
         if label_order is not None:
-            if str(label_order) == '-1': label_order = list(range(len(lines))).reverse()
+            if str(label_order) == '-1':
+                label_order = list(reversed(range(len(lines))))
             lines = [lines[i] for i in label_order]
             legend_labels = [legend_labels[i] for i in label_order]
+        if bbox_to_anchor:
+            args['bbox_to_anchor'] = bbox_to_anchor
         if figure:
-            # args['frameon'] = self.settings.figure_legend_frame
-            self.legend = self.fig.legend(lines, legend_labels, loc=legend_loc, **args)
+            if figure_legend_outside and bbox_to_anchor is None:
+                # this should put directly on top/below of figure
+                if legend_loc in ['best', 'center']:
+                    legend_loc = 'upper center'
+                loc1, loc2 = legend_loc.split(' ')
+                if loc1 == 'center':
+                    raise ValueError('Cannot use centre location for figure legend outside')
+                subloc = ('upper', 'center', 'lower')[['lower', 'center', 'upper'].index(loc1)]
+                new_legend_loc = subloc + ' ' + loc2
+                if self.settings.figure_legend_new_ax:
+                    frac = self._legend_frac_size(len(legend_labels) // legend_ncol)
+                    if loc1 == 'lower':
+                        self.outer_gridspec.set_height_ratios((0.001, 1, frac))  # Doesn't work?
+                        legend_ax = self.fig.add_subplot(self.outer_gridspec[2, 0])
+                    else:
+                        self.outer_gridspec.set_height_ratios((frac, 1, 0.001))
+                        legend_ax = self.fig.add_subplot(self.outer_gridspec[0, 0])
+                    legend_ax.axis('off')
+                    self.legend = legend_ax.legend(lines, legend_labels, loc=new_legend_loc, **args)
+                else:
+                    if self.settings.legend_position_config == 1:
+                        # default unless in GUI, which does not show things outside figure
+                        args['bbox_to_anchor'] = (0 if loc2 == 'left' else (1 if loc2 == 'right' else 0.5),
+                                                  1 if loc1 == 'upper' else (0 if loc1 == 'lower' else 0.5))
+                        legend_loc = new_legend_loc
+                    self.legend = self.fig.legend(lines, legend_labels, loc=legend_loc, **args)
+            else:
+                self.legend = self.fig.legend(lines, legend_labels, loc=legend_loc, **args)
+
             if not self.settings.figure_legend_frame:
-                # this works with tight_layout
                 self.legend.get_frame().set_edgecolor('none')
         else:
             args['frameon'] = self.settings.legend_frame and not colored_text
@@ -1621,38 +1671,50 @@ class GetDistPlotter(object):
         :param legend_ncol: The number of columns in the legend, defaults to 1
         :param label_order: minus one to show legends in reverse order that lines were added, or a list giving specific order of line indices
         :param no_gap: True if should leave no subplot padding in tight_layout
-        :param no_extra_legend_space: True to prevent making additional space above subplots for the legend
+        :param no_extra_legend_space: True to put figure legend inside the figure box
         :param no_tight: don't use :func:`~matplotlib:matplotlib.pyplot.tight_layout` to adjust subplot positions
         """
-        has_legend = self.settings.line_labels and legend_labels and len(legend_labels) > 1
-        if self.settings.tight_layout and not no_tight and not self.settings.constrained_layout:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                if no_gap:
-                    self.fig.tight_layout(h_pad=0, w_pad=0)
-                else:
-                    self.fig.tight_layout()
+        has_legend = self.settings.line_labels and legend_labels is not None and len(legend_labels) > 0
+
+        if self.settings.tight_layout and not self.settings.constrained_layout:
+            if not no_tight:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    if self.settings.figure_legend_new_ax:
+                        spec = self.outer_gridspec
+                    else:
+                        spec = self.gridspec
+                    if no_gap:
+                        spec.tight_layout(self.fig, h_pad=0, w_pad=0)
+                    else:
+                        spec.tight_layout(self.fig)
 
         if has_legend:
             if legend_ncol is None:
                 legend_ncol = self.settings.figure_legend_ncol
             if legend_loc is None:
                 legend_loc = self.settings.figure_legend_loc
-            self.extra_artists = [
-                self.add_legend(legend_labels, legend_loc, line_offset, legend_ncol, label_order=label_order,
-                                figure=True)]
-            if self.settings.tight_layout and not no_extra_legend_space and not self.settings.constrained_layout:
-                nrows = len(legend_labels) // legend_ncol
-                if self.settings.legend_position_config == 1:
-                    frac = self.settings.legend_frac_subplot_margin + nrows * self.settings.legend_frac_subplot_line
-                else:
-                    frac = self.settings.legend_frac_subplot_margin + (
-                            nrows * self.settings.legend_fontsize * 0.015) / self.settings.subplot_size_inch
-                if self.plot_row == 1: frac = min(frac, 0.5)
-                if 'upper' in legend_loc:
-                    plt.subplots_adjust(top=1 - frac / self.plot_row)
-                elif 'lower' in legend_loc:
-                    plt.subplots_adjust(bottom=frac / self.plot_row)
+            self.extra_artists = [self.add_legend(legend_labels, legend_loc, line_offset, legend_ncol,
+                                                  label_order=label_order, figure=True,
+                                                  figure_legend_outside=not no_extra_legend_space)]
+
+        if has_legend and not no_extra_legend_space and self.settings.legend_position_config == 1 and \
+                not self.settings.figure_legend_new_ax and not self.settings.constrained_layout:
+            frac = self._legend_frac_size(len(legend_labels) // legend_ncol)
+            if 'upper' in legend_loc:
+                self.fig.subplots_adjust(top=1 - frac)
+            elif 'lower' in legend_loc:
+                self.fig.subplots_adjust(bottom=frac)
+
+    def _legend_frac_size(self, legend_rows):
+        if self.settings.legend_position_config == 1:
+            frac = self.settings.legend_frac_subplot_margin + legend_rows * self.settings.legend_frac_subplot_line
+        else:
+            frac = self.settings.legend_frac_subplot_margin + (
+                    legend_rows * self.settings.legend_fontsize * 0.015) / self.settings.subplot_size_inch
+        if self.plot_row == 1:
+            frac = min(frac, 0.5)
+        return frac / self.plot_row
 
     def _rootDisplayName(self, root, i):
         if hasattr(root, 'getLabel'):
@@ -1676,6 +1738,8 @@ class GetDistPlotter(object):
         :return: A list of labels
         """
         if legend_labels is None:
+            if len(roots) < 2:
+                return []
             return [self._rootDisplayName(root, i) for i, root in enumerate(roots) if root is not None]
         else:
             return legend_labels
@@ -1781,7 +1845,8 @@ class GetDistPlotter(object):
                 param1 = self._check_param(roots[0], param1)
                 params2 = self.get_param_array(roots[0], params2)
                 for param in params2:
-                    if param.name != param1.name: pairs.append((param1, param))
+                    if param.name != param1.name:
+                        pairs.append((param1, param))
             else:
                 raise GetDistPlotError('No parameter or parameter pairs for 2D plot')
         else:
@@ -1811,7 +1876,7 @@ class GetDistPlotter(object):
         """
         self.subplots[y, x] = ax = self.fig.add_subplot(self.gridspec[y, x], **kwargs)
         if pars is not None:
-            ax.params = pars
+            ax.getdist_params = pars
         return ax
 
     def _subplot_number(self, i, pars=None, **kwargs):
@@ -1841,8 +1906,9 @@ class GetDistPlotter(object):
         self.finish_plot()
         return plot_col, plot_row
 
-    def _auto_ticks(self, axis, steps=[1, 2, 2.5, 3, 4, 5, 6, 8, 10], **kwargs):
-        axis.set_major_locator(BoundedMaxNLocator(nbins='auto', steps=steps, **kwargs))
+    def _auto_ticks(self, axis, max_ticks=None, steps=[1, 2, 2.5, 3, 4, 5, 6, 8, 10], **kwargs):
+        axis.set_major_locator(
+            BoundedMaxNLocator(nbins=max_ticks or self.settings.axis_tick_max_labels, steps=steps, **kwargs))
 
     @staticmethod
     def _inner_ticks(ax, top_and_left=True):
@@ -2099,6 +2165,8 @@ class GetDistPlotter(object):
             g = plots.getSubplotPlotter()
             g.rectangle_plot(['x0','x1'], ['x2','x3'], roots = [samples1, samples2], filled=True)
         """
+        xparams = makeList(xparams)
+        yparams = makeList(yparams)
         self.make_figure(nx=len(xparams), ny=len(yparams), sharex=len(yparams), sharey=len(xparams))
         sharey = None
         yshares = []
@@ -2158,6 +2226,17 @@ class GetDistPlotter(object):
         if not self.settings.constrained_layout:
             self.fig.subplots_adjust(wspace=0, hspace=0)
         return ax_arr
+
+    def rotate_xticklabels(self, ax=None, rotation=90):
+        """
+        Rotates the x-tick labels by given rotation (degrees)
+
+        :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
+        :param rotation: How much to rotate in degrees.
+        """
+        ax = ax or plt.gca()
+        for ticklabel in ax.get_xticklabels():
+            ticklabel.set_rotation(rotation)
 
     def rotate_yticklabels(self, ax=None, rotation=90):
         """
@@ -2562,7 +2641,7 @@ class GetDistPlotter(object):
             func = list
         for ax in self.subplots.reshape(-1):
             if ax:
-                params = getattr(ax, 'params', None)
+                params = getattr(ax, 'getdist_params', None)
                 if params is not None and \
                         func([p.name if isinstance(p, ParamInfo) else p for p in params]) == par_list:
                     return ax
