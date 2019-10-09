@@ -81,6 +81,7 @@ class GetDistPlotSettings(object):
     :ivar shade_level_scale: shading contour colors are put at [0:1:spacing]**shade_level_scale
     :ivar shade_meanlikes: 2D shading uses mean likelihoods rather than marginalized density
     :ivar solid_colors: List of default colors for filled 2D plots. Each element is either a color, or a tuple of values for different contour levels.
+    :ivar solid_contour_desaturated: True to make filled 2D colour colors paler than the input color, with contour levels related by luminosity
     :ivar solid_contour_palefactor: factor by which to make 2D outer filled contours paler when only specifying one contour color
     :ivar tight_layout: use tight_layout to layout, avoid overlaps and remove white space; if it doesn't work try constrained_layout
     :ivar title_limit: show parameter limits over 1D plots, 1 for first limit (68% default), 2 second, etc.
@@ -145,6 +146,7 @@ class GetDistPlotSettings(object):
 
         self.num_plot_contours = 2
         self.solid_contour_palefactor = 0.6
+        self.solid_contour_desaturated = False
         self.alpha_filled_add = 0.85
         self.alpha_factor_contour_lines = 0.5
 
@@ -810,6 +812,39 @@ class GetDistPlotter(object):
 
         return density.bounds()
 
+    def _get_paler_colors(self, color_rgb, n_levels, pale_factor=None):
+        # convert a color into an array of colors for used in contours
+
+        color = matplotlib.colors.colorConverter.to_rgb(color_rgb)
+        pale_factor = pale_factor or self.settings.solid_contour_palefactor
+        if not self.settings.solid_contour_desaturated:
+            cols = [color]
+            for _ in range(1, n_levels):
+                cols = [[c * (1 - pale_factor) + pale_factor for c in cols[0]]] + cols
+            return cols
+        else:
+            # Alternative adapted from Jesus Torrado
+
+            def hsv_to_hsl(_color):
+                s_hsv, v = _color[1], _color[2]
+                l = v * (1 - s_hsv / 2)
+                s_hsl = 0 if (np.allclose(l, 0) or np.allclose(l, 1)) else (v - l) / min(l, 1 - l)
+                return _color[0], s_hsl, l
+
+            def hsl_to_hsv(_color):
+                s_hsl, l = _color[1], _color[2]
+                v = l + s_hsl * min(l, 1 - l)
+                s_hsv = 0 if np.allclose(v, 0) else 2 * (1 - l / v)
+                return _color[0], s_hsv, v
+
+            # convert to explicit luminosity
+            color_hsl = hsv_to_hsl(matplotlib.colors.rgb_to_hsv(color))
+            # shades for contours
+            cols = [list(color_hsl[:2]) + [1 - (1 - color_hsl[2]) * pale_factor ** (i + 1)]
+                    for i in range(n_levels)][::-1]
+
+            return [matplotlib.colors.hsv_to_rgb(hsl_to_hsv(col)) for col in cols]
+
     def add_2d_density_contours(self, density, **kwargs):
         """
         Low-level function to add 2D contours to a plot using provided density
@@ -887,11 +922,8 @@ class GetDistPlotter(object):
                         color = self.settings.solid_colors[of - plotno - 1]
                     else:
                         color = self.settings.solid_colors[plotno]
-                if isinstance(color, six.string_types):
-                    cols = [matplotlib.colors.colorConverter.to_rgb(color)]
-                    for _ in range(1, len(contour_levels)):
-                        cols = [[c * (1 - self.settings.solid_contour_palefactor) +
-                                 self.settings.solid_contour_palefactor for c in cols[0]]] + cols
+                if isinstance(color, six.string_types) or matplotlib.colors.is_color_like(color):
+                    cols = self._get_paler_colors(color, len(contour_levels))
                 else:
                     cols = color
             levels = sorted(np.append([density.P.max() + 1], contour_levels))
@@ -1024,12 +1056,14 @@ class GetDistPlotter(object):
 
     def _make_line_args(self, nroots, **kwargs):
         line_args = kwargs.get('line_args')
-        if line_args is None: line_args = kwargs.get('contour_args')
+        if line_args is None:
+            line_args = kwargs.get('contour_args')
         if line_args is None:
             line_args = [{}] * nroots
         elif isinstance(line_args, dict):
             line_args = [line_args] * nroots
-        if len(line_args) < nroots: line_args += [{}] * (nroots - len(line_args))
+        if len(line_args) < nroots:
+            line_args += [{}] * (nroots - len(line_args))
         colors = kwargs.get('colors')
         lws = kwargs.get('lws')
         alphas = kwargs.get('alphas')
@@ -1056,7 +1090,8 @@ class GetDistPlotter(object):
             for cont, fill in zip(contour_args, filled):
                 cont['filled'] = fill
         for cont in contour_args:
-            if cont.get('filled') is None: cont['filled'] = filled or False
+            if cont.get('filled') is None:
+                cont['filled'] = filled or False
         return contour_args
 
     def plot_2d(self, roots, param1=None, param2=None, param_pair=None, shaded=False,
@@ -1110,8 +1145,8 @@ class GetDistPlotter(object):
         contour_args = self._make_contour_args(len(roots), **kwargs)
         for i, root in enumerate(roots):
             if isinstance(root, MixtureND):
-                res = self.add_2D_mixture_projection(root, param_pair[0], param_pair[1], plotno=line_offset + i,
-                                                     of=len(roots), ax=ax,
+                res = self.add_2D_mixture_projection(root, param_pair[0], param_pair[1],
+                                                     plotno=line_offset + i, of=len(roots), ax=ax,
                                                      add_legend_proxy=add_legend_proxy and root not in proxy_root_exclude,
                                                      **contour_args[i])
             else:
@@ -1996,7 +2031,8 @@ class GetDistPlotter(object):
                 if col is None:
                     _line_args.append({})
                 else:
-                    if isinstance(col, (tuple, list)): col = col[-1]
+                    if isinstance(col, (tuple, list)) and not matplotlib.colors.is_color_like(col):
+                        col = col[-1]
                     _line_args += [{'color': col}]
             return _line_args
 
