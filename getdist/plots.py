@@ -10,13 +10,13 @@ import warnings
 matplotlib.use('Agg', warn=False)
 from matplotlib import cm, rcParams
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 import numpy as np
 from paramgrid import gridconfig, batchjob
 import getdist
 from getdist import MCSamples, loadMCSamples, ParamNames, ParamInfo, IniFile
 from getdist.chains import chainFiles
 from getdist.paramnames import escapeLatex, makeList, mergeRenames
-from getdist.parampriors import ParamBounds
 from getdist.densities import Density1D, Density2D
 from getdist.gaussian_mixtures import MixtureND
 from getdist.matplotlib_ext import BoundedMaxNLocator, SciFuncFormatter
@@ -538,7 +538,7 @@ class MCSampleAnalysis(object):
         if hasattr(root, 'getUpper'):
             return root
         else:
-            return self.samplesForRoot(root)  # #defines getUpper and getLower, all that's needed
+            return self.samplesForRoot(root)  # defines getUpper and getLower, all that's needed
 
 
 class GetDistPlotter(object):
@@ -605,10 +605,11 @@ class GetDistPlotter(object):
         """
         if isinstance(self.settings.plot_args, dict):
             args = self.settings.plot_args
-        elif isinstance(self.settings.plot_args, list):
+        elif isinstance(self.settings.plot_args, (list, tuple)):
             if len(self.settings.plot_args) > plotno:
                 args = self.settings.plot_args[plotno]
-                if args is None: args = dict()
+                if args is None:
+                    args = dict()
             else:
                 args = {}
         elif not self.settings.plot_args:
@@ -774,8 +775,8 @@ class GetDistPlotter(object):
         :return: min, max for the plotted density
         """
         param = self._check_param(root, param)
-        ax = ax or self._subplot_number(0, pars=(param))
-        normalized = normalized if normalized is not None else g.settings.norm_1d_density
+        ax = ax or self._subplot_number(0, pars=(param,))
+        normalized = normalized if normalized is not None else self.settings.norm_1d_density
         if isinstance(root, MixtureND):
             density = root.density1D(param.name)
             if not normalized:
@@ -864,7 +865,8 @@ class GetDistPlotter(object):
                 if add_legend_proxy:
                     self.contours_added.append(None)
                 return None
-        if alpha is None: alpha = self._get_alpha2D(plotno, **kwargs)
+        if alpha is None:
+            alpha = self._get_alpha2D(plotno, **kwargs)
         if contour_levels is None:
             if not hasattr(density, 'contours'):
                 contours = self.sampleAnalyser.ini.ndarray('contours')
@@ -881,12 +883,12 @@ class GetDistPlotter(object):
         else:
             proxyIx = -1
 
-        def clean_args(args):  # prevent unused argument warnings
-            cont_args = dict(args)
-            cont_args.pop('color', None)
-            cont_args.pop('ls', None)
-            cont_args.pop('lw', None)
-            return cont_args
+        def clean_args(_args):  # prevent unused argument warnings
+            _args = dict(_args)
+            _args.pop('color', None)
+            _args.pop('ls', None)
+            _args.pop('lw', None)
+            return _args
 
         if kwargs.get('filled'):
             if cols is None:
@@ -902,8 +904,9 @@ class GetDistPlotter(object):
                     cols = color
             levels = sorted(np.append([density.P.max() + 1], contour_levels))
             CS = ax.contourf(density.x, density.y, density.P, levels, colors=cols, alpha=alpha, **clean_args(kwargs))
-            if proxyIx >= 0: self.contours_added[proxyIx] = (
-                plt.Rectangle((0, 0), 1, 1, fc=matplotlib.colors.to_rgb(CS.tcolors[-1][0])))
+            if proxyIx >= 0:
+                self.contours_added[proxyIx] = (
+                    plt.Rectangle((0, 0), 1, 1, fc=matplotlib.colors.to_rgb(CS.tcolors[-1][0])))
             ax.contour(density.x, density.y, density.P, levels[:1], colors=CS.tcolors[-1],
                        linewidths=self.settings.lw_contour, alpha=alpha * self.settings.alpha_factor_contour_lines,
                        **clean_args(kwargs))
@@ -1236,7 +1239,7 @@ class GetDistPlotter(object):
                 axis.set_major_formatter(SciFuncFormatter())
                 return
 
-        sFormatter = matplotlib.ticker.ScalarFormatter(useOffset=False, useMathText=True)
+        sFormatter = ScalarFormatter(useOffset=False, useMathText=True)
         sFormatter.set_powerlimits(power_limits)
         axis.set_major_formatter(sFormatter)
 
@@ -1374,9 +1377,10 @@ class GetDistPlotter(object):
         roots = makeList(roots)
         if self.fig is None:
             self.make_figure()
-        ax = ax or self._subplot_number(0, pars=[param])
+        ax = ax or self._subplot_number(0, pars=(param,))
         plotparam = None
         plotroot = None
+        _ret_range = kwargs.pop('_ret_range', None)
         line_args = self._make_line_args(len(roots), **kwargs)
         xmin, xmax = None, None
         for i, root in enumerate(roots):
@@ -1422,7 +1426,8 @@ class GetDistPlotter(object):
             if ticks[-1] > 1:
                 ticks = ticks[:-1]
             ax.set_yticks(ticks[1:])
-        return xmin, xmax
+        if _ret_range:
+            return xmin, xmax
 
     def make_figure(self, nplot=1, nx=None, ny=None, xstretch=1.0, ystretch=1.0, sharex=False, sharey=False):
         """
@@ -1802,7 +1807,7 @@ class GetDistPlotter(object):
         plot_col, plot_row = self.make_figure(nparam, nx=nx, sharey=share_y)
         plot_roots = roots
         for i, param in enumerate(params):
-            ax = self._subplot_number(i, pars=[param], sharey=None if i == 0 or not share_y else self.subplots[0, 0])
+            ax = self._subplot_number(i, pars=(param,), sharey=None if i == 0 or not share_y else self.subplots[0, 0])
             if roots_per_param:
                 plot_roots = roots[i]
             marker = self._get_marker(markers, i, param.name)
@@ -2043,17 +2048,17 @@ class GetDistPlotter(object):
         bottom = len(params) - 1
         for i, param in enumerate(params):
             for i2 in range(bottom, i, -1):
-                self._subplot(i, i2, pars=[params[i], params[i2]],
+                self._subplot(i, i2, pars=(params[i], params[i2]),
                               sharex=self.subplots[bottom, i] if i2 != bottom else None,
                               sharey=self.subplots[i2, 0] if i > 0 else None)
 
-            ax = self._subplot(i, i, pars=[param], sharex=self.subplots[bottom, i] if i != bottom else None)
+            ax = self._subplot(i, i, pars=(param,), sharex=self.subplots[bottom, i] if i != bottom else None)
             marker = self._get_marker(markers, i, param.name)
             self._inner_ticks(ax, False)
             xlim = self.plot_1d(roots1d, param, marker=marker, do_xlabel=i == plot_col - 1,
                                 no_label_no_numbers=self.settings.no_triangle_axis_labels, title_limit=title_limit,
                                 label_right=True, no_zero=True, no_ylabel=True, no_ytick=True, line_args=line_args,
-                                lims=param_limits.get(param.name, None), ax=ax, **diag1d_kwargs)
+                                lims=param_limits.get(param.name, None), ax=ax, _ret_range=True, **diag1d_kwargs)
             lims[i] = xlim
         for i, param in enumerate(params):
             marker = self._get_marker(markers, i, param.name)
@@ -2081,7 +2086,7 @@ class GetDistPlotter(object):
                     ax.set_xlim(lims[i])
 
                 if upper_roots is not None:
-                    ax = self._subplot(i2, i, pars=[param2, param], sharex=self.subplots[bottom, i2],
+                    ax = self._subplot(i2, i, pars=(param2, param), sharex=self.subplots[bottom, i2],
                                        sharey=self.subplots[i, 0] if i > 0 else (
                                            self.subplots[0, 1] if i2 > 1 else None))
                     pair.reverse()
@@ -2199,7 +2204,7 @@ class GetDistPlotter(object):
             for y, (yparam, subplot_roots) in enumerate(zip(yparams, yroots)):
                 if x > 0:
                     sharey = yshares[y]
-                ax = self._subplot(x, y, pars=[xparam, yparam], sharex=sharex, sharey=sharey)
+                ax = self._subplot(x, y, pars=(xparam, yparam), sharex=sharex, sharey=sharey)
                 if y == 0:
                     sharex = ax
                     xshares.append(ax)

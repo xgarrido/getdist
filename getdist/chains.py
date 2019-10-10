@@ -2,6 +2,7 @@ from __future__ import print_function
 import os
 import random
 import numpy as np
+from collections import OrderedDict
 from getdist.paramnames import ParamNames, ParamInfo, escapeLatex
 from getdist.convolve import autoConvolve
 import getdist.cobaya_interface as cobaya
@@ -10,6 +11,8 @@ import six
 
 # whether to write to terminal chain names and burn in details when loaded from file
 print_load_details = True
+
+_int_types = six.integer_types + (np.integer,)
 
 try:
     import pandas
@@ -22,6 +25,13 @@ except ImportError:
 class WeightedSampleError(Exception):
     """
     An exception that is raised when a WeightedSamples error occurs
+    """
+    pass
+
+
+class ParamError(WeightedSampleError):
+    """
+    An Exception that indicates a bad parameter.
     """
     pass
 
@@ -270,7 +280,7 @@ class WeightedSamples(object):
         self.needs_update = True
 
     def _makeParamvec(self, par):
-        if isinstance(par, six.integer_types):
+        if isinstance(par, _int_types):
             if 0 <= par < self.n:
                 return self.samples[:, par]
             elif par == -1:
@@ -566,7 +576,7 @@ class WeightedSamples(object):
         :param where: if specified, a filter for the samples to use (where x>=5 would mean only process samples with x>=5).
         :return: array of p_i - mean(p_i)
         """
-        if isinstance(paramVec, six.integer_types) and paramVec >= 0 and where is None:
+        if isinstance(paramVec, _int_types) and paramVec >= 0 and where is None:
             if self.diffs is not None:
                 return self.diffs[paramVec]
             return self.samples[:, paramVec] - self.getMeans()[paramVec]
@@ -584,8 +594,9 @@ class WeightedSamples(object):
         :param where: if specified, a filter for the samples to use (where x>=5 would mean only process samples with x>=5).
         :return: list of arrays p_i-mean(p-i) for each parameter
         """
-        if pars is None: pars = self.n
-        if isinstance(pars, six.integer_types) and pars >= 0 and where is None:
+        if pars is None:
+            pars = self.n
+        if isinstance(pars, _int_types) and pars >= 0 and where is None:
             means = self.getMeans()
             return [self.samples[:, i] - means[i] for i in range(pars)]
         return [self.mean_diff(i, where) for i in pars]
@@ -611,7 +622,8 @@ class WeightedSamples(object):
         :param weights: A numpy array of weights for each sample, defaults to self.weights
         :return: :class:`~.chains.ParamConfidenceData` instance
         """
-        if weights is None: weights = self.weights
+        if weights is None:
+            weights = self.weights
         d = ParamConfidenceData()
         d.paramVec = self._makeParamvec(paramVec)[start:end]
         d.norm = np.sum(weights[start:end])
@@ -945,6 +957,23 @@ class Chains(WeightedSamples):
         self.index = index
         return self.index
 
+    def _parAndNumber(self, name):
+        """
+         Get index and ParamInfo for a name or index
+
+        :param name: name or parameter index
+        :return: index, ParamInfo instance
+        """
+        if isinstance(name, ParamInfo):
+            name = name.name
+        if isinstance(name, six.string_types):
+            name = self.index.get(name, None)
+            if name is None:
+                return None, None
+        if isinstance(name, _int_types):
+            return name, self.paramNames.names[name]
+        raise ParamError("Unknown parameter type %s" % name)
+
     def getRenames(self):
         """
         Gets dictionary of renames known to each parameter.
@@ -992,11 +1021,10 @@ class Chains(WeightedSamples):
         """
         Returns a dictionary of parameter values for sample number ix
 
+        :param ix: sample index
         :param want_derived: include derived parameters
-        :param want_fixed: also include values of any fixed parameters
         :return: ordered dictionary of parameter values
         """
-        from collections import OrderedDict
         res = OrderedDict()
         for i, name in enumerate(self.paramNames.names):
             if want_derived or not name.isDerived:
@@ -1006,8 +1034,10 @@ class Chains(WeightedSamples):
         return res
 
     def _makeParamvec(self, par):
-        if self.needs_update: self.updateBaseStatistics()
-        if isinstance(par, ParamInfo): par = par.name
+        if self.needs_update:
+            self.updateBaseStatistics()
+        if isinstance(par, ParamInfo):
+            par = par.name
         if isinstance(par, six.string_types):
             return self.samples[:, self.index[par]]
         return WeightedSamples._makeParamvec(self, par)
@@ -1225,7 +1255,16 @@ class Chains(WeightedSamples):
         :param make_dirs: True if this should (recursively) create the directory if it doesn't exist
         """
         super(Chains, self).saveAsText(root, chain_index, make_dirs)
-        if not chain_index: self.paramNames.saveAsText(root + '.paramnames')
+        if not chain_index:
+            self.saveTextMetadata(root)
+
+    def saveTextMetadata(self, root):
+        """
+        Saves metadata about the sames to text files with given file root
+
+        :param root: root file name
+        """
+        self.paramNames.saveAsText(root + '.paramnames')
 
     def savePickle(self, filename):
         """

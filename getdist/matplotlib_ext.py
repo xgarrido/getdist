@@ -1,5 +1,6 @@
 import matplotlib
 from matplotlib import ticker
+from matplotlib.axis import YAxis
 import math
 
 
@@ -44,7 +45,8 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
         axes = self.axis.axes
         tick = self.axis._get_tick(True)
         rotation = tick._labelrotation[1]
-        if isinstance(self.axis, matplotlib.axis.YAxis):
+
+        if isinstance(self.axis, YAxis):
             rotation += 90
             ends = axes.transAxes.transform([[0, 0], [0, 1]])
             length = ((ends[1][1] - ends[0][1]) / axes.figure.dpi) * 72
@@ -57,16 +59,15 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
         formatter = self.axis.major.formatter
 
         # first guess
-        label_len = min(0.9, size_ratio * max(3 * font_aspect, 1.5)) * (vmax - vmin)
-
+        label_len = size_ratio * 1.5 * (vmax - vmin)
         delta = label_len / 2 if self.bounded_prune else 0
 
-        label_space = label_len * 1.35
-
         try:
-            self._nbins = int((vmax - vmin - 2 * delta) / label_space) + 1
-            if self._nbins < 3:
-                self._nbins = int((vmax - vmin - 2 * delta) / (1.1 * label_len)) + 1
+            self._nbins = int((vmax - vmin - 2 * delta) / (1.1 * label_len)) + 1
+            if self._nbins > 4:
+                # use more space for ticks
+                self._nbins = int((vmax - vmin - 2 * delta) / (1.35 * label_len)) + 1
+                self._min_n_ticks = 3
             if _nbins != 'auto':
                 self._nbins = min(self._nbins, _nbins)
 
@@ -85,15 +86,18 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                     char_len = len(label)
                     if '.' in label:
                         char_len -= 0.4
-                    return size_ratio * max(3.0, char_len * font_aspect) * (vmax - vmin)
+                    return size_ratio * max(2.0, char_len * font_aspect) * (vmax - vmin)
 
                 label_len = _get_Label_len()
-
-                if locs[1] - locs[0] < label_len * 1.1:
+                if locs[1] - locs[0] < label_len * 1.1 or len(locs) != 3:
                     # check for long labels not accounted for the the current "*3" aspect ratio heuristic for labels
+                    # and labels too tightly spaced
                     delta = label_len / 2 if self.bounded_prune else 0
                     self._nbins = int((vmax - vmin - 2 * delta) / (1.1 * label_len)) + 1
+                    if self._nbins > 3:
+                        self._nbins = max(3, int((vmax - vmin - 2 * delta) / (1.35 * label_len)) + 1)
                     while self._nbins:
+                        self._min_n_ticks = min(self._min_n_ticks, self._nbins)
                         locs = super(BoundedMaxNLocator, self).tick_values(vmin + delta, vmax - delta)
                         locs = [x for x in locs if vmin <= x <= vmax]
                         label_len = _get_Label_len()
@@ -101,8 +105,6 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                         if len(locs) < 2 or locs[1] - locs[0] > label_len * 1.1:
                             break
                         self._nbins = self._nbins - 1
-                        if self._nbins == 1:
-                            self._min_n_ticks = 1
                 else:
                     locs = self._bounded_prune(locs, vmin, vmax, label_len)
             else:

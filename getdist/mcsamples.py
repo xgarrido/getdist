@@ -13,7 +13,7 @@ import getdist
 from getdist import chains, types, covmat, ParamInfo, IniFile, ParamNames
 from getdist.densities import Density1D, Density2D, DensityND
 from getdist.densities import getContourLevels as getOtherContourLevels
-from getdist.chains import Chains, chainFiles, lastModified
+from getdist.chains import Chains, chainFiles, lastModified, WeightedSampleError, ParamError
 from getdist.convolve import convolve1D, convolve2D
 import getdist.kde_bandwidth as kde
 from getdist.parampriors import ParamBounds
@@ -22,7 +22,7 @@ import six
 pickle_version = 21
 
 
-class MCSamplesError(Exception):
+class MCSamplesError(WeightedSampleError):
     """
     An Exception that is raised when there is an error inside the MCSamples class.
     """
@@ -32,13 +32,6 @@ class MCSamplesError(Exception):
 class SettingError(MCSamplesError):
     """
     An Exception that indicates bad settings.
-    """
-    pass
-
-
-class ParamError(MCSamplesError):
-    """
-    An Exception that indicates a bad parameter.
     """
     pass
 
@@ -405,7 +398,8 @@ class MCSamples(Chains):
         ini.setAttr('plot_output', self)
 
         ini.setAttr('force_twotail', self)
-        if self.force_twotail: logging.warning('Computing two tail limits')
+        if self.force_twotail:
+            logging.warning('Computing two tail limits')
         ini.setAttr('max_corr_2D', self)
 
         if ini.hasKey('contours'):
@@ -1108,46 +1102,28 @@ class MCSamples(Chains):
                 maxoff = int(min(self.corr_length_steps, thin_rows // (2 * num_chains_used)))
 
                 if maxoff > 0:
-                    if False:
-                        # ignore ends of chains
-                        corrs = np.zeros([maxoff, nparam])
+                    corrs = np.zeros([maxoff, nparam])
+                    for chain in chainlist:
+                        thin_ix = chain.thin_indices(autocorr_thin)
+                        thin_rows = len(thin_ix)
+                        maxoff = min(maxoff, thin_rows // autocorr_thin)
                         for j in range(nparam):
-                            diff = self.samples[thin_ix, j] - self.means[j]
+                            diff = chain.diffs[j][thin_ix]
                             for off in range(1, maxoff + 1):
-                                corrs[off - 1][j] = np.dot(diff[off:], diff[:-off]) / (thin_rows - off) / self.vars[j]
-                        lines += parForm % ""
-                        for i in range(maxoff):
-                            lines += "%8i" % ((i + 1) * autocorr_thin)
-                        lines += "\n"
-                        for j in range(nparam):
-                            label = self.parLabel(j)
-                            lines += parNames[j]
-                            for i in range(maxoff):
-                                lines += "%8.3f" % corrs[i][j]
-                            lines += " %s\n" % label
-                    else:
-                        corrs = np.zeros([maxoff, nparam])
-                        for chain in chainlist:
-                            thin_ix = chain.thin_indices(autocorr_thin)
-                            thin_rows = len(thin_ix)
-                            maxoff = min(maxoff, thin_rows // autocorr_thin)
-                            for j in range(nparam):
-                                diff = chain.diffs[j][thin_ix]
-                                for off in range(1, maxoff + 1):
-                                    corrs[off - 1][j] += np.dot(diff[off:], diff[:-off]) / (thin_rows - off) / \
-                                                         self.vars[j]
-                        corrs /= len(chainlist)
+                                corrs[off - 1][j] += np.dot(diff[off:], diff[:-off]) / (thin_rows - off) / \
+                                                     self.vars[j]
+                    corrs /= len(chainlist)
 
-                        lines += parForm % ""
+                    lines += parForm % ""
+                    for i in range(maxoff):
+                        lines += "%8i" % ((i + 1) * autocorr_thin)
+                    lines += "\n"
+                    for j in range(nparam):
+                        label = self.parLabel(j)
+                        lines += parNames[j]
                         for i in range(maxoff):
-                            lines += "%8i" % ((i + 1) * autocorr_thin)
-                        lines += "\n"
-                        for j in range(nparam):
-                            label = self.parLabel(j)
-                            lines += parNames[j]
-                            for i in range(maxoff):
-                                lines += "%8.3f" % corrs[i][j]
-                            lines += " %s\n" % label
+                            lines += "%8.3f" % corrs[i][j]
+                        lines += " %s\n" % label
 
         if writeDataToFile:
             with open(filename or (self.rootdirname + '.converge'), 'w') as f:
@@ -1231,16 +1207,15 @@ class MCSamples(Chains):
         has_limits = parx.has_limits or pary.has_limits
         do_correlated = not parx.has_limits or not pary.has_limits
 
-        def fallback_widths(e):
+        def fallback_widths(ex):
             msg = '2D kernel density bandwidth optimizer failed for %s, %s. Using fallback width: %s' % (
-                parx.name, pary.name, e)
+                parx.name, pary.name, ex)
             if getattr(self, 'raise_on_bandwidth_errors', False):
                 raise BandwidthError(msg)
             logging.warning(msg)
-            c = max(min(corr, self.max_corr_2D), -self.max_corr_2D)
-            hx = parx.sigma_range / N_eff ** (1. / 6)
-            hy = pary.sigma_range / N_eff ** (1. / 6)
-            return hx, hy, c
+            _hx = parx.sigma_range / N_eff ** (1. / 6)
+            _hy = pary.sigma_range / N_eff ** (1. / 6)
+            return _hx, _hy, max(min(corr, self.max_corr_2D), -self.max_corr_2D)
 
         if min_corr < abs(corr) <= self.max_corr_2D and do_correlated:
             # 'shear' the data so fairly uncorrelated, making sure shear keeps any bounds on one parameter unchanged
@@ -1307,7 +1282,8 @@ class MCSamples(Chains):
         return hx, hy, c
 
     def _initParamRanges(self, j, paramConfid=None):
-        if isinstance(j, six.string_types): j = self.index[j]
+        if isinstance(j, six.string_types):
+            j = self.index[j]
         paramVec = self.samples[:, j]
         return self._initParam(self.paramNames.names[j], paramVec, self.means[j], self.sddev[j], paramConfid)
 
@@ -1414,7 +1390,8 @@ class MCSamples(Chains):
 
         if self.needs_update: self.updateBaseStatistics()
         j = self._parAndNumber(j)[0]
-        if j is None: return None
+        if j is None:
+            return None
 
         par = self._initParamRanges(j, paramConfid)
         num_bins = kwargs.get('num_bins', self.num_bins)
@@ -1424,7 +1401,8 @@ class MCSamples(Chains):
         fine_bins = kwargs.get('fine_bins', self.fine_bins)
 
         paramrange = par.range_max - par.range_min
-        if paramrange <= 0: raise MCSamplesError('Parameter range is <= 0: ' + par.name)
+        if paramrange <= 0:
+            raise MCSamplesError('Parameter range is <= 0: ' + par.name)
         width = paramrange / (num_bins - 1)
 
         bin_indices, fine_width, binmin, binmax = self._binSamples(self.samples[:, j], par, fine_bins)
@@ -1579,15 +1557,6 @@ class MCSamples(Chains):
             scale = (mx - mn) / (2 * 0.675)
         return scale
 
-    def _parAndNumber(self, name):
-        if isinstance(name, ParamInfo): name = name.name
-        if isinstance(name, six.string_types):
-            name = self.index.get(name, None)
-            if name is None: return None, None
-        if isinstance(name, six.integer_types):
-            return name, self.paramNames.names[name]
-        raise ParamError("Unknown parameter type %s" % name)
-
     def _make2Dhist(self, ixs, iys, xsize, ysize):
         flatix = ixs + iys * xsize
         # note arrays are indexed y,x
@@ -1632,7 +1601,8 @@ class MCSamples(Chains):
         start = time.time()
         j, parx = self._parAndNumber(j)
         j2, pary = self._parAndNumber(j2)
-        if j is None or j2 is None: return None
+        if j is None or j2 is None:
+            return None
 
         self._initParamRanges(j)
         self._initParamRanges(j2)
@@ -1910,7 +1880,8 @@ class MCSamples(Chains):
         :return: a :class:`~.densities.DensityND` instance
         """
 
-        if self.needs_update: self.updateBaseStatistics()
+        if self.needs_update:
+            self.updateBaseStatistics()
 
         ndim = len(js)
 
@@ -2373,35 +2344,36 @@ class MCSamples(Chains):
                           ranges=self.ranges, settings=copy.deepcopy(self.ini.params))
         return samps
 
-    def saveAsText(self, root, chain_index=None, make_dirs=False):
+    def saveTextMetadata(self, root, properties={}):
         """
-        Saves samples as text file, including .ranges and .paramnames.
+        Saves metadata about the sames to text files with given file root
 
-        :param root: The root file name to use.
-        :param chain_index: optional index to be used for the filename.
-        :param make_dirs: True if should create the directories
+        :param root: root file name
+        :param properties: optional dictiory of values to save in root.properties.ini
         """
-        super(MCSamples, self).saveAsText(root, chain_index, make_dirs)
-        if not chain_index:
-            self.ranges.saveToFile(root + '.ranges')
-
-    def saveChainsAsText(self, root, make_dirs=False, properties={}):
-        if self.chains is None:
-            chains = self.getSeparateChains()
-        else:
-            chains = self.chains
-        for i, chain in enumerate(chains):
-            chain.saveAsText(root, i, make_dirs)
+        super(MCSamples, self).saveTextMetadata(root)
         self.ranges.saveToFile(root + '.ranges')
-        self.paramNames.saveAsText(root + '.paramnames')
-        if properties:
+        if properties or self.properties or self.label:
             ini_name = root + '.properties.ini'
             if os.path.exists(ini_name):
                 ini = IniFile(ini_name)
             else:
                 ini = IniFile()
+            if self.properties:
+                ini.params.update(self.properties)
+            if self.label:
+                ini.params.update({'label': self.label})
             ini.params.update(properties)
             ini.saveFile(ini_name)
+
+    def saveChainsAsText(self, root, make_dirs=False, properties={}):
+        if self.chains is None:
+            chain_list = self.getSeparateChains()
+        else:
+            chain_list = self.chains
+        for i, chain in enumerate(chain_list):
+            chain.saveAsText(root, i, make_dirs)
+        self.saveTextMetadata(root, properties)
 
     # Write functions for console script
     def writeScriptPlots1D(self, filename, plotparams=None, ext=None):

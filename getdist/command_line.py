@@ -156,18 +156,18 @@ def getdist_script(args, exit_on_error=True):
 
     def filterParList(namestring, num=None):
         if not namestring.strip():
-            pars = mc.paramNames.list()
+            _pars = mc.paramNames.list()
         else:
-            pars = []
+            _pars = []
             for name in namestring.split():
                 if '?' in name or '*' in name:
-                    pars += mc.paramNames.getMatches(name, strings=True)
+                    _pars += mc.paramNames.getMatches(name, strings=True)
                 elif mc.paramNames.parWithName(name):
-                    pars.append(name)
-        if num is not None and len(pars) != num:
-            doprint('%iD plot has missing parameter or wrong number of parameters: %s' % (num, pars))
-            pars = None
-        return pars
+                    _pars.append(name)
+        if num is not None and len(_pars) != num:
+            doprint('%iD plot has missing parameter or wrong number of parameters: %s' % (num, _pars))
+            _pars = None
+        return _pars
 
     if cool != 1:
         doprint('Cooling chains by ', cool)

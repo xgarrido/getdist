@@ -162,11 +162,16 @@ class ParamList(object):
         :param names: a list of name strings to use
         """
         self.names = []
-        if default: self.setDefault(default)
-        if names is not None: self.setWithNames(names)
-        if fileName is not None: self.loadFromFile(fileName)
-        if setParamNameFile is not None: self.setLabelsFromParamNames(setParamNameFile)
-        if labels is not None: self.setLabels(labels)
+        if default:
+            self.setDefault(default)
+        if names is not None:
+            self.setWithNames(names)
+        if fileName is not None:
+            self.loadFromFile(fileName)
+        if setParamNameFile is not None:
+            self.setLabelsFromParamNames(setParamNameFile)
+        if labels is not None:
+            self.setLabels(labels)
 
     def setDefault(self, n):
         self.names = [ParamInfo(name='param' + str(i + 1), label='p_{' + str(i + 1) + '}') for i in range(n)]
@@ -279,7 +284,7 @@ class ParamList(object):
             p = ParamNames(fname)
         for par in p.names:
             param = self.parWithName(par.name)
-            if not param is None:
+            if param is not None:
                 param.label = par.label
                 if set_derived: param.isDerived = par.isDerived
 

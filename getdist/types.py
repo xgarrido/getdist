@@ -7,6 +7,7 @@ import numpy as np
 from getdist import paramnames
 import six
 import tempfile
+from collections import OrderedDict
 
 _sci_tolerance = 4
 
@@ -555,7 +556,6 @@ class BestFit(ParamResults):
             return None
 
     def getParamDict(self, include_derived=True):
-        from collections import OrderedDict
         res = OrderedDict()
         for i, name in enumerate(self.names):
             if include_derived or not name.isDerived:

@@ -2023,9 +2023,9 @@ class DialogSettings(QDialog):
             item = QTableWidgetItem(str(key))
             item.setFlags(item.flags() ^ Qt.ItemIsEditable)
             self.table.setItem(irow, 0, item)
-            bool = value in ['False', 'True']
-            item = QTableWidgetItem("" if bool else value)
-            if bool:
+            is_bool = value in ['False', 'True']
+            item = QTableWidgetItem("" if is_bool else value)
+            if is_bool:
                 item.setCheckState(Qt.Checked if ini.bool(key) else Qt.Unchecked)
                 item.setFlags(item.flags() ^ Qt.ItemIsEditable | Qt.ItemIsUserCheckable | Qt.ItemIsSelectable)
             else:
