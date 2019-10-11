@@ -2,6 +2,7 @@ import matplotlib
 from matplotlib import ticker
 from matplotlib.axis import YAxis
 import math
+import numpy as np
 
 
 class SciFuncFormatter(ticker.Formatter):
@@ -41,6 +42,7 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
 
         _nbins = self._nbins
         _min_ticks = self._min_n_ticks
+        _preferred_steps = None
 
         axes = self.axis.axes
         tick = self.axis._get_tick(True)
@@ -59,24 +61,32 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
         formatter = self.axis.major.formatter
 
         # first guess
-        label_len = size_ratio * 1.5 * (vmax - vmin)
+        if cos_rotation > 0.05:
+            label_len = size_ratio * 1.5 * (vmax - vmin)
+            label_space = label_len * 1.1
+        else:
+            # text orthogonal to axis
+            label_len = size_ratio * 1.35 * (vmax - vmin)
+            label_space = label_len * 1.25
+
         delta = label_len / 2 if self.bounded_prune else 0
 
         try:
-            self._nbins = int((vmax - vmin - 2 * delta) / (1.1 * label_len)) + 1
+            self._nbins = int((vmax - vmin - 2 * delta) / label_space) + 1
             if self._nbins > 4:
                 # use more space for ticks
-                self._nbins = int((vmax - vmin - 2 * delta) / (1.35 * label_len)) + 1
-                self._min_n_ticks = 3
+                self._nbins = int((vmax - vmin - 2 * delta) / ((1.5 if self._nbins > 6 else 1.3) * label_space)) + 1
+            self._min_n_ticks = min(self._nbins, 3)
             if _nbins != 'auto':
                 self._nbins = min(self._nbins, _nbins)
 
             locs = super(BoundedMaxNLocator, self).tick_values(vmin + delta, vmax - delta)
             locs = [x for x in locs if vmin <= x <= vmax]
-
             if cos_rotation > 0.05 and isinstance(formatter, ticker.ScalarFormatter) and len(locs) > 1:
 
                 def _get_Label_len():
+                    if not len(locs):
+                        return 0
                     formatter.set_locs(locs)
                     # get non-latex version of label
                     form = formatter.format
@@ -94,14 +104,21 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                     # and labels too tightly spaced
                     delta = label_len / 2 if self.bounded_prune else 0
                     self._nbins = int((vmax - vmin - 2 * delta) / (1.1 * label_len)) + 1
-                    if self._nbins > 3:
-                        self._nbins = max(3, int((vmax - vmin - 2 * delta) / (1.35 * label_len)) + 1)
+                    if self._nbins > 4:
+                        self._nbins = max(4, int((vmax - vmin - 2 * delta) / (1.35 * label_len)) + 1)
+                    if _nbins != 'auto':
+                        self._nbins = min(self._nbins, _nbins)
                     while self._nbins:
                         self._min_n_ticks = min(self._min_n_ticks, self._nbins)
-                        locs = super(BoundedMaxNLocator, self).tick_values(vmin + delta, vmax - delta)
+                        locs = self._spaced_ticks(vmin + delta, vmax - delta, label_len * 1.1)
                         locs = [x for x in locs if vmin <= x <= vmax]
                         label_len = _get_Label_len()
                         locs = self._bounded_prune(locs, vmin, vmax, label_len)
+                        if len(locs) < 2 and _preferred_steps is None and label_len < (vmax - vmin) / 2:
+                            _preferred_steps = self._steps
+                            self._min_n_ticks = self._nbins = 2
+                            self.set_params(steps=[1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10])
+                            continue
                         if len(locs) < 2 or locs[1] - locs[0] > label_len * 1.1:
                             break
                         self._nbins = self._nbins - 1
@@ -112,5 +129,42 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
         finally:
             self._nbins = _nbins
             self._min_n_ticks = _min_ticks
+            if _preferred_steps is not None:
+                self.set_params(steps=_preferred_steps)
 
         return locs
+
+    def _spaced_ticks(self, vmin, vmax, label_len):
+        nbins = self._nbins
+
+        scale, offset = ticker.scale_range(vmin, vmax, nbins)
+        _vmin = vmin - offset
+        _vmax = vmax - offset
+        raw_step = (_vmax - _vmin) / max(1, nbins - 1)
+        steps = self._extended_steps * scale
+
+        istep = np.nonzero(steps >= raw_step)[0]
+        if len(istep) == 0:
+            return []
+        else:
+            istep = istep[0]
+
+        # This is an upper limit; move to smaller steps if necessary.
+        for istep in reversed(range(istep + 1)):
+            step = steps[istep]
+
+            best_vmin = (_vmin // step) * step
+
+            # Find tick locations spanning the vmin-vmax range, taking into
+            # account degradation of precision when there is a large offset.
+            # The edge ticks beyond vmin and/or vmax are needed for the
+            # "round_numbers" autolimit mode.
+            edge = ticker._Edge_integer(step, offset)
+            low = edge.le(_vmin - best_vmin)
+            high = edge.ge(_vmax - best_vmin)
+            ticks = np.arange(low, high + 1) * step + best_vmin
+            # Count only the ticks that will be displayed.
+            nticks = ((ticks <= _vmax) & (ticks >= _vmin)).sum()
+            if nticks >= self._min_n_ticks or step < label_len:
+                break
+        return ticks + offset

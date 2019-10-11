@@ -48,6 +48,7 @@ class GetDistPlotSettings(object):
     :ivar colorbar_label_pad: padding for the colorbar labels
     :ivar colorbar_label_rotation: angle to rotate colorbar label (set to zero if -90 default gives layout problem)
     :ivar colorbar_rotation: angle to rotate colorbar tick labels
+    :ivar colorbar_axes_fontsize: size for tick labels on colorbar (None for default to match axes font size)
     :ivar colormap: a `Matplotlib color map <https://www.scipy.org/Cookbook/Matplotlib/Show_colormaps>`_ for shading
     :ivar colormap_scatter: a `Matplotlib color map <https://www.scipy.org/Cookbook/Matplotlib/Show_colormaps>`_ for 3D plots
     :ivar constrained_layout: use matplotlib's constrained-layout to fit plots within the figure and avoid overlaps
@@ -59,14 +60,14 @@ class GetDistPlotSettings(object):
     :ivar figure_legend_new_ax: put figure legend in separate axis; can try to avoid tight_layout/constrainted layout issues
     :ivar legend_colored_text: use colored text for legend labels rather than separate color blocks
     :ivar legend_fontsize: The font size for the legend
-    :ivar legend_frac_subplot_line: fraction of _subplot size to use per line for spacing figure legend
-    :ivar legend_frac_subplot_margin: fraction of _subplot size to use for spacing figure legend above plots
+    :ivar legend_frac_subplot_line: fraction of subplot size to use per line for spacing figure legend
+    :ivar legend_frac_subplot_margin: fraction of subplot size to use for spacing figure legend above plots
     :ivar legend_frame: draw box around legend
     :ivar legend_loc: The location for the legend
     :ivar legend_position_config: recipe for positioning figure border (default 1)
     :ivar legend_rect_border: whether to have black border around solid color boxes in legends
     :ivar line_labels: True if you want to automatically add legends when adding more than one line to subplots
-    :ivar lineM: list of default line styles/colors (['-k','-r'...])
+    :ivar lineM: list of default line styles/colors (['-k','-r'...]) or name of a standard colormap (e.g. tab10)
     :ivar no_triangle_axis_labels: whether subplots in triangle plots should show axis labels if not at the edge
     :ivar norm_1d_density: whether to normolize 1D densities (otherwise normalized to unit peak value)
     :ivar norm_prob_label: label for the y axis in normalized 1D density plots
@@ -80,7 +81,8 @@ class GetDistPlotSettings(object):
     :ivar progress: write out some status
     :ivar shade_level_scale: shading contour colors are put at [0:1:spacing]**shade_level_scale
     :ivar shade_meanlikes: 2D shading uses mean likelihoods rather than marginalized density
-    :ivar solid_colors: List of default colors for filled 2D plots. Each element is either a color, or a tuple of values for different contour levels.
+    :ivar solid_colors: List of default colors for filled 2D plots or the name of a colormap (e.g. tab10).  If a list,
+                        each element is either a color, or a tuple of values for different contour levels.
     :ivar solid_contour_palefactor: factor by which to make 2D outer filled contours paler when only specifying one contour color
     :ivar tight_layout: use tight_layout to layout, avoid overlaps and remove white space; if it doesn't work try constrained_layout
     :ivar title_limit: show parameter limits over 1D plots, 1 for first limit (68% default), 2 second, etc.
@@ -106,6 +108,7 @@ class GetDistPlotSettings(object):
         self.norm_1d_density = False
         # : line styles/colors
         self.lineM = ['-k', '-r', '-b', '-g', '-m', '-c', '-y', '--k', '--r', '--b', '--g', '--m']
+
         self.plot_args = None
         self.solid_colors = ['#006FED', '#E03424', 'gray', '#009966', '#000866', '#336600', '#006633', 'm', 'r']
         self.default_dash_styles = {'--': (3, 2), '-.': (4, 1, 1, 1)}
@@ -123,6 +126,7 @@ class GetDistPlotSettings(object):
         self.colorbar_rotation = None  # e.g. -90
         self.colorbar_label_pad = 0
         self.colorbar_label_rotation = -90  # seems to cause problems with some versions, can set to zero
+        self.colorbar_axes_fontsize = None
 
         self.setWithSubplotSize(subplot_size_inch)
 
@@ -139,7 +143,7 @@ class GetDistPlotSettings(object):
         self.legend_rect_border = False
         self.legend_position_config = 1
 
-        self.legend_frac_subplot_margin = 0.2
+        self.legend_frac_subplot_margin = 0.1
         self.legend_frac_subplot_line = 0.1
         self.legend_fontsize = None
 
@@ -182,7 +186,6 @@ class GetDistPlotSettings(object):
         self.scatter_size = 3
         if size_inch > 4:
             self.scatter_size = size_inch * 2
-        self.colorbar_axes_fontsize = self.axes_fontsize
 
     def rcSizes(self, axes_fontsize=None, lab_fontsize=None, legend_fontsize=None):
         """
@@ -196,10 +199,6 @@ class GetDistPlotSettings(object):
         self.legend_fontsize = legend_fontsize or rcParams['legend.fontsize']
         self.lab_fontsize = lab_fontsize or rcParams['axes.labelsize']
         self.axes_fontsize = axes_fontsize or rcParams['xtick.labelsize']
-        if isinstance(self.axes_fontsize, six.integer_types):
-            self.colorbar_axes_fontsize = self.axes_fontsize - 1
-        else:
-            self.colorbar_axes_fontsize = 'smaller'
 
 
 defaultSettings = GetDistPlotSettings()
@@ -261,7 +260,6 @@ def getSubplotPlotter(subplot_size=2, width_inch=None, **kwargs):
             plotter.settings.rcSizes()
     if subplot_size < 3 and kwargs.get('settings') is None and not width_inch:
         plotter.settings.axes_fontsize += 2
-        plotter.settings.colorbar_axes_fontsize += 2
         plotter.settings.legend_fontsize = plotter.settings.lab_fontsize + 1
     return plotter
 
@@ -627,21 +625,27 @@ class GetDistPlotter(object):
         :param ls: The line style
         :return: The dash style.
         """
-        return self.settings.default_dash_styles.get(ls, None)
+        return self.settings.default_dash_styles.get(ls)
 
     def _get_default_ls(self, plotno=0):
         """
-        Get default line style.
+        Get default line style, taken from settings.lineM
 
         :param plotno: The number of the line added to the plot to get the style of.
         :return: The default line style.
         """
         try:
-            res = self.settings.lineM[plotno]
-            i = 0
-            while i < len(res) and res[i] in ['-', '.', ':']:
-                i += 1
-            return res[:i], res[i:]
+            res = self._get_color_at_index(self.settings.lineM, plotno)
+            if matplotlib.colors.is_color_like(res):
+                return '-', res
+            if isinstance(res, six.string_types):
+                i = 0
+                while i < len(res) and res[i] in ['-', '.', ':']:
+                    i += 1
+                return res[:i], res[i:]
+            else:
+                # assume tuple of line style and color
+                return res[0], res[1]
         except IndexError:
             print('Error adding line ' + str(plotno) + ': Add more default line stype entries to settings.lineM')
             raise
@@ -655,13 +659,16 @@ class GetDistPlotter(object):
         :return: dict with ls, dashes, lw and color set appropriately
         """
         args = self._get_plot_args(plotno, **kwargs)
-        if 'ls' not in args: args['ls'] = self._get_default_ls(plotno)[0]
+        if 'ls' not in args:
+            args['ls'] = self._get_default_ls(plotno)[0]
         if 'dashes' not in args:
             dashes = self._get_dashes_for_ls(args['ls'])
-            if dashes is not None: args['dashes'] = dashes
+            if dashes is not None:
+                args['dashes'] = dashes
         if 'color' not in args:
             args['color'] = self._get_default_ls(plotno)[1]
-        if 'lw' not in args: args['lw'] = self.settings.lw1
+        if 'lw' not in args:
+            args['lw'] = self.settings.lw1
         return args
 
     def _get_color(self, plotno, **kwargs):
@@ -673,6 +680,27 @@ class GetDistPlotter(object):
         :return: The color.
         """
         return self._get_line_styles(plotno, **kwargs)['color']
+
+    def _get_color_at_index(self, colors, i=None):
+        """
+         Get color at index
+
+        :param colors: colormap name, a colormap or array of colors
+        :param i: index, or None to return the color array
+        :return: color or array of colors
+        """
+        if isinstance(colors, six.string_types):
+            colormap = getattr(cm, colors, None)
+            if colormap is None:
+                raise GetDistPlotError('Unknown matplotlib colormap %s' % colors)
+        else:
+            colormap = colors
+        colors = getattr(colormap, 'colors', None) or colormap
+        if i is None:
+            return colors
+        if i >= len(colors):
+            raise IndexError('Color index out of range %s' % i)
+        return colors[i]
 
     def _get_linestyle(self, plotno, **kwargs):
         """
@@ -787,7 +815,8 @@ class GetDistPlotter(object):
                 return None
 
         title_limit = title_limit if title_limit is not None else self.settings.title_limit
-        if normalized: density.normalize()
+        if normalized:
+            density.normalize()
 
         kwargs = self._get_line_styles(plotno, **kwargs)
         self.lines_added[plotno] = kwargs
@@ -807,7 +836,8 @@ class GetDistPlotter(object):
                 _, texs = samples.getLatex([param], title_limit)
                 caption = texs[0]
             if '---' not in caption:
-                ax.set_title('$' + caption + '$', fontsize=self.settings.title_limit_fontsize)
+                ax.set_title('$' + caption + '$',
+                             fontsize=self.settings.title_limit_fontsize or self.settings.axes_fontsize)
 
         return density.bounds()
 
@@ -894,10 +924,8 @@ class GetDistPlotter(object):
             if cols is None:
                 color = kwargs.get('color')
                 if color is None:
-                    if of is not None:
-                        color = self.settings.solid_colors[of - plotno - 1]
-                    else:
-                        color = self.settings.solid_colors[plotno]
+                    color = self._get_color_at_index(self.settings.solid_colors,
+                                                     (of - plotno - 1) if of is not None else plotno)
                 if isinstance(color, six.string_types) or matplotlib.colors.is_color_like(color):
                     cols = self._get_paler_colors(color, len(contour_levels))
                 else:
@@ -914,18 +942,20 @@ class GetDistPlotter(object):
             args = self._get_line_styles(plotno, **kwargs)
             linestyles = [args['ls']]
             cols = [args['color']]
+            lws = args['lw']  # not lw_contour is only used for filled contours
             kwargs = self._get_plot_args(plotno, **kwargs)
             kwargs['alpha'] = alpha
             CS = ax.contour(density.x, density.y, density.P, sorted(contour_levels), colors=cols, linestyles=linestyles,
-                            linewidths=self.settings.lw_contour, **clean_args(kwargs))
+                            linewidths=lws, **clean_args(kwargs))
             dashes = args.get('dashes')
             if dashes:
                 for c in CS.collections:
                     c.set_dashes([(0, dashes)])
             if proxyIx >= 0:
-                line = plt.Line2D([0, 1], [0, 1], ls=linestyles[0], lw=self.settings.lw_contour, color=cols[0],
+                line = plt.Line2D([0, 1], [0, 1], ls=linestyles[0], lw=lws, color=cols[0],
                                   alpha=args.get('alpha'))
-                if dashes: line.set_dashes(dashes)
+                if dashes:
+                    line.set_dashes(dashes)
                 self.contours_added[proxyIx] = line
 
         return density.bounds()
@@ -1041,12 +1071,19 @@ class GetDistPlotter(object):
             line_args = [line_args] * nroots
         if len(line_args) < nroots:
             line_args += [{}] * (nroots - len(line_args))
-        colors = kwargs.get('colors')
-        lws = kwargs.get('lws')
-        alphas = kwargs.get('alphas')
-        ls = kwargs.get('ls')
-        if isinstance(ls, six.string_types):
-            ls = [ls] * nroots
+        colors = self._get_color_at_index(kwargs.get('colors'))
+
+        def _get_list(tag):
+            ret = kwargs.get(tag)
+            if ret is None:
+                return None
+            if not isinstance(ret, (list, tuple)):
+                return [ret] * nroots
+            return ret
+
+        lws = _get_list('lws')
+        alphas = _get_list('alphas')
+        ls = _get_list('ls')
         for i, args in enumerate(line_args):
             c = args.copy()  # careful to copy before modifying any
             line_args[i] = c
@@ -1243,7 +1280,19 @@ class GetDistPlotter(object):
         sFormatter.set_powerlimits(power_limits)
         axis.set_major_formatter(sFormatter)
 
-    def _setAxisProperties(self, axis, x):
+    def _set_axis_properties(self, axis, rotation=0, labelsize=None):
+        self._auto_ticks(axis)
+        labelsize = labelsize or self.settings.axes_fontsize
+        axis.set_tick_params(which='major', labelrotation=rotation, labelsize=labelsize)
+        axis.get_offset_text().set_fontsize(labelsize * 3 / 4 if
+                                            not isinstance(labelsize,
+                                                           six.string_types) and labelsize > 7 else labelsize)
+        if isinstance(axis, matplotlib.axis.YAxis):
+            if abs(rotation - 90) < 45:
+                for ticklabel in axis.get_ticklabels():
+                    ticklabel.set_verticalalignment("center")
+
+    def _set_main_axis_properties(self, axis, x):
         """
         Sets axis properties.
 
@@ -1251,16 +1300,7 @@ class GetDistPlotter(object):
         :param x: True if x axis, False for y axis
         """
         self._SetAxisFormatter(axis, x)
-        self._auto_ticks(axis)
-
-        axis.set_tick_params(which='major', labelsize=self.settings.axes_fontsize,
-                             labelrotation=self.settings.axis_tick_x_rotation if x else self.settings.axis_tick_y_rotation)
-        if not x and abs(self.settings.axis_tick_y_rotation - 90) < 45:
-            for ticklabel in axis.get_ticklabels():
-                ticklabel.set_verticalalignment("center")
-        axis.get_offset_text().set_fontsize(self.settings.axes_fontsize * 3 / 4 if
-                                            not isinstance(self.settings.axes_fontsize, six.string_types) and
-                                            self.settings.axes_fontsize > 7 else self.settings.axes_fontsize)
+        self._set_axis_properties(axis, self.settings.axis_tick_x_rotation if x else self.settings.axis_tick_y_rotation)
 
     def _no_x_ticklabels(self, ax):
         ax.tick_params(labelbottom=False)
@@ -1290,7 +1330,7 @@ class GetDistPlotter(object):
         if lims is not None:
             ax.axis(lims)
         if do_xlabel or not no_label_no_numbers:
-            self._setAxisProperties(ax.xaxis, True)
+            self._set_main_axis_properties(ax.xaxis, True)
         if pos is not None:
             ax.set_position(pos)
         if do_xlabel and len(params) > 0:
@@ -1299,7 +1339,7 @@ class GetDistPlotter(object):
             self._no_x_ticklabels(ax)
         if len(params) > 1:
             if do_ylabel or not no_label_no_numbers:
-                self._setAxisProperties(ax.yaxis, False)
+                self._set_main_axis_properties(ax.yaxis, False)
             if do_ylabel:
                 self.set_ylabel(params[1], ax)
             elif no_label_no_numbers:
@@ -1418,7 +1458,7 @@ class GetDistPlotter(object):
                 ax.yaxis.tick_right()
             ax.set_ylabel(lab)
         if no_ytick or not self.settings.prob_y_ticks:
-            ax.set_yticks([])
+            ax.tick_params(left=False, labelleft=False)
         elif no_ylabel:
             self._no_y_ticklabels(ax)
         elif no_zero and not normalized:
@@ -1438,7 +1478,7 @@ class GetDistPlotter(object):
         :param ny: number of subplots in each column
         :param xstretch: The parameter of how much to stretch the width, 1 is default
         :param ystretch: The parameter of how much to stretch the height, 1 is default
-        :param sharex: no vertucak soace between subplots
+        :param sharex: no vertical space between subplots
         :param sharey: no horizontal space between subplots
         :return: The plot_col, plot_row numbers of subplots for the figure
         """
@@ -1457,6 +1497,8 @@ class GetDistPlotter(object):
         else:
             figsize = (self.settings.subplot_size_inch * self.plot_col * xstretch,
                        self.settings.subplot_size_inch * self.plot_row * ystretch)
+        if self.settings.figure_legend_new_ax:
+            figsize[1] *= 1.1
         if self.settings.constrained_layout:
             self.fig = plt.figure(figsize=figsize, constrained_layout=True)
         else:
@@ -1477,13 +1519,15 @@ class GetDistPlotter(object):
         else:
             self.gridspec = plt.GridSpec(nrows=self.plot_row, ncols=self.plot_col, figure=self.fig)
 
-        if self.settings.constrained_layout and (sharex or sharey):
-            kwargs = {}
-            if sharey:
-                kwargs = {'w_pad': 0, 'wspace': 0}
-            if sharex:
-                kwargs.update({'h_pad': 0, 'hspace': 0})
-            self.fig.set_constrained_layout_pads(**kwargs)
+        if sharey:
+            self._share_kwargs = {'w_pad': 0, 'wspace': 0}
+        else:
+            self._share_kwargs = {}
+        if sharex:
+            self._share_kwargs.update({'h_pad': 0, 'hspace': 0})
+
+        if self.settings.constrained_layout and self._share_kwargs:
+            self.fig.set_constrained_layout_pads(**self._share_kwargs)
 
         self.subplots = np.ndarray((self.plot_row, self.plot_col), dtype=object)
         self.subplots[:, :] = None
@@ -1569,7 +1613,7 @@ class GetDistPlotter(object):
 
     def add_legend(self, legend_labels, legend_loc=None, line_offset=0, legend_ncol=None, colored_text=None,
                    figure=False, ax=None, label_order=None, align_right=False, fontsize=None,
-                   figure_legend_outside=True, bbox_to_anchor=None):
+                   figure_legend_outside=True, **kwargs):
         """
         Add a legend to the axes or figure.
 
@@ -1586,7 +1630,7 @@ class GetDistPlotter(object):
         :param align_right: True to align legend text at the right
         :param fontsize: The size of the font, default from settings
         :param figure_legend_outside: whether figure legend is outside or inside the subplots box
-        :param bbox_to_anchor: specific reference location for legend placement (figure_legend_outside ignored)
+        :param kwargs: optional extra arguments for legend function
         :return: a :class:`matplotlib:matplotlib.legend.Legend` instance
         """
         if legend_loc is None:
@@ -1606,7 +1650,8 @@ class GetDistPlotter(object):
                 lines.append(plt.Line2D([0, 1], [0, 1], **args))
         else:
             lines = self.contours_added
-        args = {'ncol': legend_ncol}
+        args = kwargs.copy()
+        args['ncol'] = legend_ncol
         if fontsize or self.settings.legend_fontsize:
             args['prop'] = {'size': fontsize or self.settings.legend_fontsize}
         if colored_text:
@@ -1617,10 +1662,8 @@ class GetDistPlotter(object):
                 label_order = list(reversed(range(len(lines))))
             lines = [lines[i] for i in label_order]
             legend_labels = [legend_labels[i] for i in label_order]
-        if bbox_to_anchor:
-            args['bbox_to_anchor'] = bbox_to_anchor
         if figure:
-            if figure_legend_outside and bbox_to_anchor is None:
+            if figure_legend_outside and args.get('bbox_to_anchor') is None:
                 # this should put directly on top/below of figure
                 if legend_loc in ['best', 'center']:
                     legend_loc = 'upper center'
@@ -1642,8 +1685,17 @@ class GetDistPlotter(object):
                 else:
                     if self.settings.legend_position_config == 1:
                         # default unless in GUI, which does not show things outside figure
-                        args['bbox_to_anchor'] = (0 if loc2 == 'left' else (1 if loc2 == 'right' else 0.5),
-                                                  1 if loc1 == 'upper' else (0 if loc1 == 'lower' else 0.5))
+                        frac = self.settings.legend_frac_subplot_margin
+                        if loc1 == 'upper':
+                            args['bbox_to_anchor'] = (0 if loc2 == 'left' else
+                                                      (self.plot_col if loc2 == 'right' else self.plot_col / 2),
+                                                      1 + frac)
+                            args['bbox_transform'] = self.subplots[0, 0].transAxes
+                        else:
+                            args['bbox_to_anchor'] = (0 if loc2 == 'left' else (1 if loc2 == 'right' else 0.5),
+                                                      -frac / self.plot_row)
+                            args['bbox_transform'] = self.fig.transFigure
+                        args['borderaxespad'] = 0
                         legend_loc = new_legend_loc
                     self.legend = self.fig.legend(lines, legend_labels, loc=legend_loc, **args)
             else:
@@ -1674,8 +1726,12 @@ class GetDistPlotter(object):
                 text.set_color(c)
         return self.legend
 
+    def _subplots_adjust(self):
+        if not self.settings.constrained_layout and self._share_kwargs:
+            self.fig.subplots_adjust(wspace=self._share_kwargs.get('wspace'), hspace=self._share_kwargs.get('hspace'))
+
     def finish_plot(self, legend_labels=None, legend_loc=None, line_offset=0, legend_ncol=None, label_order=None,
-                    no_gap=False, no_extra_legend_space=False, no_tight=False):
+                    no_extra_legend_space=False, no_tight=False, **legend_args):
         """
         Finish the current plot, adjusting subplot spacing and adding legend
 
@@ -1684,41 +1740,29 @@ class GetDistPlotter(object):
         :param line_offset: The offset of plotted lines to label (e.g. 1 to not label first line)
         :param legend_ncol: The number of columns in the legend, defaults to 1
         :param label_order: minus one to show legends in reverse order that lines were added, or a list giving specific order of line indices
-        :param no_gap: True if should leave no subplot padding in tight_layout
         :param no_extra_legend_space: True to put figure legend inside the figure box
         :param no_tight: don't use :func:`~matplotlib:matplotlib.pyplot.tight_layout` to adjust subplot positions
+        :param legend_args: optional parameters for the legend
         """
         has_legend = self.settings.line_labels and legend_labels is not None and len(legend_labels) > 0
 
-        if self.settings.tight_layout and not self.settings.constrained_layout:
-            if not no_tight:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    if self.settings.figure_legend_new_ax:
-                        spec = self.outer_gridspec
-                    else:
-                        spec = self.gridspec
-                    if no_gap:
-                        spec.tight_layout(self.fig, h_pad=0, w_pad=0)
-                    else:
-                        spec.tight_layout(self.fig)
+        if self.settings.tight_layout and not self.settings.constrained_layout and not no_tight:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                if self.settings.figure_legend_new_ax:
+                    spec = self.outer_gridspec
+                else:
+                    spec = self.gridspec
+                spec.tight_layout(self.fig, h_pad=self._share_kwargs.get('h_pad'),
+                                  w_pad=self._share_kwargs.get('w_pad'))
 
         if has_legend:
-            if legend_ncol is None:
-                legend_ncol = self.settings.figure_legend_ncol
-            if legend_loc is None:
-                legend_loc = self.settings.figure_legend_loc
-            self.extra_artists = [self.add_legend(legend_labels, legend_loc, line_offset, legend_ncol,
+            self.extra_artists = [self.add_legend(legend_labels,
+                                                  legend_loc or self.settings.figure_legend_loc, line_offset,
+                                                  legend_ncol or self.settings.figure_legend_ncol,
                                                   label_order=label_order, figure=True,
-                                                  figure_legend_outside=not no_extra_legend_space)]
-
-        if has_legend and not no_extra_legend_space and self.settings.legend_position_config == 1 and \
-                not self.settings.figure_legend_new_ax and not self.settings.constrained_layout:
-            frac = self._legend_frac_size(len(legend_labels) // legend_ncol)
-            if 'upper' in legend_loc:
-                self.fig.subplots_adjust(top=1 - frac)
-            elif 'lower' in legend_loc:
-                self.fig.subplots_adjust(bottom=frac)
+                                                  figure_legend_outside=not no_extra_legend_space, **legend_args)]
+        self._subplots_adjust()
 
     def _legend_frac_size(self, legend_rows):
         if self.settings.legend_position_config == 1:
@@ -1804,10 +1848,14 @@ class GetDistPlotter(object):
         nparam = len(params)
         if share_y is None:
             share_y = self.settings.prob_label is not None and nparam > 1
+        elif nx is None and len(params) < 6:
+            nx = len(params)
         plot_col, plot_row = self.make_figure(nparam, nx=nx, sharey=share_y)
         plot_roots = roots
         for i, param in enumerate(params):
-            ax = self._subplot_number(i, pars=(param,), sharey=None if i == 0 or not share_y else self.subplots[0, 0])
+            ax = self._subplot_number(i, pars=(param,),
+                                      sharey=None if (i == 0 or not share_y or self.settings.norm_1d_density) else
+                                      self.subplots[0, 0])
             if roots_per_param:
                 plot_roots = roots[i]
             marker = self._get_marker(markers, i, param.name)
@@ -1815,10 +1863,10 @@ class GetDistPlotter(object):
                          param_renames=param_renames, title_limit=title_limit, ax=ax, **kwargs)
             if xlims is not None:
                 ax.set_xlim(xlims[i][0], xlims[i][1])
+
         self.finish_plot(self._default_legend_labels(legend_labels, roots), legend_ncol=legend_ncol,
                          label_order=label_order)
-        if share_y and not self.settings.constrained_layout:
-            self.fig.subplots_adjust(wspace=0)
+
         return plot_col, plot_row
 
     def plots_2d(self, roots, param1=None, params2=None, param_pairs=None, nx=None, legend_labels=None,
@@ -1916,11 +1964,12 @@ class GetDistPlotter(object):
         for i, (root, param1, param2) in enumerate(root_params_triplets):
             ax = self._subplot_number(i, pars=(param1, param2))
             self.plot_2d(root, param_pair=[param1, param2], filled=filled, add_legend_proxy=i == 0, ax=ax)
-            if x_lim is not None: ax.set_xlim(x_lim)
+            if x_lim is not None:
+                ax.set_xlim(x_lim)
         self.finish_plot()
         return plot_col, plot_row
 
-    def _auto_ticks(self, axis, max_ticks=None, steps=[1, 2, 2.5, 3, 4, 5, 6, 8, 10], **kwargs):
+    def _auto_ticks(self, axis, max_ticks=None, steps=[1, 2, 2.5, 4, 5, 6, 8, 10], **kwargs):
         axis.set_major_locator(
             BoundedMaxNLocator(nbins=max_ticks or self.settings.axis_tick_max_labels, steps=steps, **kwargs))
 
@@ -1932,7 +1981,7 @@ class GetDistPlotter(object):
     def _get_marker(self, markers, index, name):
         if markers is not None:
             if isinstance(markers, dict):
-                return markers.get(name, None)
+                return markers.get(name)
             elif index < len(markers):
                 return markers[index]
         return None
@@ -1992,7 +2041,8 @@ class GetDistPlotter(object):
         plot_col = len(params)
         if plot_3d_with_param is not None:
             col_param = self._check_param(roots[0], plot_3d_with_param)
-        self.make_figure(nx=plot_col, ny=plot_col, sharex=True, sharey=True)
+        self.make_figure(nx=plot_col, ny=plot_col, sharex=self.settings.no_triangle_axis_labels,
+                         sharey=self.settings.no_triangle_axis_labels)
         lims = dict()
 
         def defLineArgs(cont_args, cont_colors):
@@ -2004,7 +2054,8 @@ class GetDistPlotter(object):
                     else:
                         cols.append(None)
                 else:
-                    cols.append(_arg.get('color', None) or self.settings.solid_colors[len(cont_args) - plotno - 1])
+                    cols.append(_arg.get('color') or self._get_color_at_index(self.settings.solid_colors,
+                                                                              len(cont_args) - plotno - 1))
             _line_args = []
             for col in cols:
                 if col is None:
@@ -2058,7 +2109,7 @@ class GetDistPlotter(object):
             xlim = self.plot_1d(roots1d, param, marker=marker, do_xlabel=i == plot_col - 1,
                                 no_label_no_numbers=self.settings.no_triangle_axis_labels, title_limit=title_limit,
                                 label_right=True, no_zero=True, no_ylabel=True, no_ytick=True, line_args=line_args,
-                                lims=param_limits.get(param.name, None), ax=ax, _ret_range=True, **diag1d_kwargs)
+                                lims=param_limits.get(param.name), ax=ax, _ret_range=True, **diag1d_kwargs)
             lims[i] = xlim
         for i, param in enumerate(params):
             marker = self._get_marker(markers, i, param.name)
@@ -2118,10 +2169,9 @@ class GetDistPlotter(object):
             label_ax.yaxis.set_offset_position('left')
             label_ax.set_ylim(lims[0])
             self.set_ylabel(params[0], ax=label_ax)
-            self._setAxisProperties(label_ax.yaxis, False)
+            self._set_main_axis_properties(label_ax.yaxis, False)
 
-        if self.settings.no_triangle_axis_labels and not self.settings.constrained_layout:
-            self.fig.subplots_adjust(wspace=0, hspace=0)
+        self._subplots_adjust()
 
         if plot_3d_with_param is not None:
             bottom = 0.5
@@ -2130,17 +2180,27 @@ class GetDistPlotter(object):
             cb = self.fig.colorbar(self.last_scatter, cax=self.fig.add_axes([0.9, bottom, 0.03, 0.35]))
             cb.ax.yaxis.set_ticks_position('left')
             cb.ax.yaxis.set_label_position('left')
+            self.rotate_yticklabels(cb.ax, rotation=self.settings.colorbar_rotation or 0,
+                                    labelsize=self.settings.colorbar_axes_fontsize or self.settings.axes_fontsize)
             self.add_colorbar_label(cb, col_param, label_rotation=-self.settings.colorbar_label_rotation)
 
         labels = self._default_legend_labels(legend_labels, roots1d)
-        if not legend_loc and len(params) < 4 and upper_roots is None:
+
+        if not legend_loc and self.settings.figure_legend_loc == 'upper center' and \
+                len(params) < 4 and upper_roots is None:
             legend_loc = 'upper right'
+        else:
+            legend_loc = legend_loc or self.settings.figure_legend_loc
+        args = {}
+        if 'upper' in legend_loc and upper_roots is None:
+            args['bbox_to_anchor'] = (self.plot_col / (2 if 'center' in legend_loc else 1), 1)
+            args['bbox_transform'] = self.subplots[0, 0].transAxes
+            args['borderaxespad'] = 0
+
         self.finish_plot(labels, label_order=label_order,
                          legend_ncol=legend_ncol or (None if upper_roots is None else len(labels)),
-                         legend_loc=legend_loc, no_gap=self.settings.no_triangle_axis_labels,
-                         no_extra_legend_space=upper_roots is None)
-        if self.settings.no_triangle_axis_labels and not self.settings.constrained_layout:
-            self.fig.subplots_adjust(wspace=0, hspace=0)
+                         legend_loc=legend_loc, no_extra_legend_space=upper_roots is None, no_tight=title_limit,
+                         **args)
 
     def rectangle_plot(self, xparams, yparams, yroots=None, roots=None, plot_roots=None, plot_texts=None,
                        xmarkers=None, ymarkers=None, marker_args={}, param_limits={},
@@ -2232,37 +2292,34 @@ class GetDistPlotter(object):
             ax.set_xlim(param_limits.get(xparam, limits[xparam]))
         for yparam, ax in zip(yparams, yshares):
             ax.set_ylim(param_limits.get(yparam, limits[yparam]))
-        if not self.settings.constrained_layout:
-            self.fig.subplots_adjust(wspace=0, hspace=0)
+        self._subplots_adjust()
         if roots:
             legend_labels = self._default_legend_labels(legend_labels, roots)
-        self.finish_plot(no_gap=True, legend_labels=legend_labels, label_order=label_order,
+        self.finish_plot(legend_labels=legend_labels, label_order=label_order,
                          legend_ncol=legend_ncol or len(legend_labels))
-        if not self.settings.constrained_layout:
-            self.fig.subplots_adjust(wspace=0, hspace=0)
         return ax_arr
 
-    def rotate_xticklabels(self, ax=None, rotation=90):
+    def rotate_xticklabels(self, ax=None, rotation=90, labelsize=None):
         """
         Rotates the x-tick labels by given rotation (degrees)
 
         :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
         :param rotation: How much to rotate in degrees.
+        :param labelsize: size for tick labels (default from settings.axes_fontsize)
         """
         ax = ax or plt.gca()
-        for ticklabel in ax.get_xticklabels():
-            ticklabel.set_rotation(rotation)
+        self._set_axis_properties(ax.xaxis, rotation, labelsize)
 
-    def rotate_yticklabels(self, ax=None, rotation=90):
+    def rotate_yticklabels(self, ax=None, rotation=90, labelsize=None):
         """
         Rotates the y-tick labels by given rotation (degrees)
 
         :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
         :param rotation: How much to rotate in degrees.
+        :param labelsize: size for tick labels (default from settings.axes_fontsize)
         """
         ax = ax or plt.gca()
-        for ticklabel in ax.get_yticklabels():
-            ticklabel.set_rotation(rotation)
+        self._set_axis_properties(ax.yaxis, rotation, labelsize)
 
     def add_colorbar(self, param, orientation='vertical', mappable=None, ax=None, **ax_args):
         """
@@ -2282,11 +2339,9 @@ class GetDistPlotter(object):
         cb.draw_all()
         if not ax_args.get('color_label_in_axes'):
             self.add_colorbar_label(cb, param)
-            if self.settings.colorbar_rotation is not None:
-                self.rotate_yticklabels(cb.ax, self.settings.colorbar_rotation)
-                labels = [label.get_text() for label in cb.ax.yaxis.get_ticklabels()[::2]]
-                cb.ax.yaxis.set_ticks(cb.ax.yaxis.get_ticklocs()[::2])
-                cb.ax.yaxis.set_ticklabels(labels)
+        self._set_axis_properties(cb.ax.yaxis if orientation == 'vertical' else cb.ax.xaxis,
+                                  self.settings.colorbar_rotation or 0,
+                                  self.settings.colorbar_axes_fontsize or self.settings.axes_fontsize)
         return cb
 
     def add_line(self, xdata, ydata, zorder=0, color=None, ls=None, ax=None, **kwargs):
@@ -2322,7 +2377,6 @@ class GetDistPlotter(object):
             kwargs['va'] = 'bottom'
         cb.set_label(param.latexLabel(), fontsize=self.settings.lab_fontsize,
                      rotation=label_rotation, labelpad=self.settings.colorbar_label_pad, **kwargs)
-        plt.setp(cb.ax.get_ymajorticklabels(), fontsize=self.settings.colorbar_axes_fontsize)
 
     def _makeParamObject(self, names, samples, obj=None):
         class SampleNames(object):
@@ -2512,7 +2566,8 @@ class GetDistPlotter(object):
                                            alpha_samples=alpha_samples, ax=ax, **kwargs)
         for i, root in enumerate(roots[1:]):
             params = params_for_plots[i + 1]
-            res = self.add_2d_contours(root, params[0], params[1], i + line_offset, add_legend_proxy=add_legend_proxy,
+            res = self.add_2d_contours(root, params[0], params[1], i + line_offset,
+                                       add_legend_proxy=add_legend_proxy,
                                        zorder=i + 1, ax=ax, **contour_args[i])
             xlims, ylims = self._updateLimits(res, xlims, ylims)
         if 'lims' not in kwargs:
@@ -2548,7 +2603,7 @@ class GetDistPlotter(object):
         for i, triplet in enumerate(sets):
             ax = self._subplot_number(i, pars=triplet)
             self.plot_3d(roots, triplet, ax=ax, **kwargs)
-        self.finish_plot(self._default_legend_labels(legend_labels, roots[1:]), no_tight=True)
+        self.finish_plot(self._default_legend_labels(legend_labels, roots[1:]))
         return plot_col, plot_row
 
     def plots_3d_z(self, roots, param_x, param_y, param_z=None, max_z=None, **kwargs):

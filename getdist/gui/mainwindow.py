@@ -855,13 +855,15 @@ class MainWindow(QMainWindow):
                 if str(current) != value and len(value):
                     if isinstance(current, six.string_types):
                         self.custom_plot_settings[key] = value
-                    elif current is None:
+                    else:
                         try:
                             self.custom_plot_settings[key] = eval(value)
                         except:
-                            self.custom_plot_settings[key] = value
-                    else:
-                        self.custom_plot_settings[key] = eval(value)
+                            import re
+                            if current is None or re.match(r'^[\w]+$', value):
+                                self.custom_plot_settings[key] = value
+                            else:
+                                raise
                 else:
                     deleted.append(key)
                     self.custom_plot_settings.pop(key, None)
