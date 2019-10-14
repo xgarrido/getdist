@@ -2047,7 +2047,7 @@ class DialogSettings(QDialog):
         self.table.setEditTriggers(QAbstractItemView.AllEditTriggers)
 
         self.table.resizeColumnsToContents()
-        maxh = max(parent.rect().height(),
+        maxh = min(parent.rect().height(),
                    (QApplication.desktop().screenGeometry().height() - parent.rect().top()) * 4 / 5)
         self.resize(width, maxh)
         self.table.setColumnWidth(1, self.table.width() - self.table.columnWidth(0))

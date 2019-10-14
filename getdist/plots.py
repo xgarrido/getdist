@@ -11,6 +11,7 @@ matplotlib.use('Agg', warn=False)
 from matplotlib import cm, rcParams
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
+from matplotlib.font_manager import font_scalings
 import numpy as np
 from paramgrid import gridconfig, batchjob
 import getdist
@@ -38,35 +39,40 @@ class GetDistPlotSettings(object):
 
     :ivar alpha_factor_contour_lines: alpha factor for adding contour lines between filled contours
     :ivar alpha_filled_add: alpha for adding filled contours to a plot
+    :ivar axes_fontsize: Size for axis font at reference axis size
+    :ivar axes_labelsize: Size for axis label font at reference axis size
     :ivar axis_marker_color: The color for a marker
     :ivar axis_marker_ls: The line style for a marker
     :ivar axis_marker_lw: The line width for a marker
     :ivar axis_tick_powerlimits: exponents at which to use scientific notation for axis tick labels
     :ivar axis_tick_max_labels: maximum number of tick labels per axis
-    :ivar axis_tick_x_rotation: The rotation for the x label in degrees
-    :ivar axis_tick_y_rotation: The rotation for the y label in degrees
-    :ivar colorbar_label_pad: padding for the colorbar labels
+    :ivar axis_tick_x_rotation: The rotation for the x tick label in degrees
+    :ivar axis_tick_y_rotation: The rotation for the y tick label in degrees
+    :ivar colorbar_label_pad: padding for the colorbar label
     :ivar colorbar_label_rotation: angle to rotate colorbar label (set to zero if -90 default gives layout problem)
-    :ivar colorbar_rotation: angle to rotate colorbar tick labels
+    :ivar colorbar_tick_rotation: angle to rotate colorbar tick labels
     :ivar colorbar_axes_fontsize: size for tick labels on colorbar (None for default to match axes font size)
     :ivar colormap: a `Matplotlib color map <https://www.scipy.org/Cookbook/Matplotlib/Show_colormaps>`_ for shading
     :ivar colormap_scatter: a `Matplotlib color map <https://www.scipy.org/Cookbook/Matplotlib/Show_colormaps>`_ for 3D plots
     :ivar constrained_layout: use matplotlib's constrained-layout to fit plots within the figure and avoid overlaps
-    :ivar default_dash_styles: dict mapping line styles to detailed dash styles, default:  {'--': (3, 2), '-.': (4, 1, 1, 1)}
     :ivar fig_width_inch: The width of the figure in inches
     :ivar figure_legend_frame: draw box around figure legend
     :ivar figure_legend_loc: The location for the figure legend
     :ivar figure_legend_ncol: number of columns for figure legend
     :ivar figure_legend_new_ax: put figure legend in separate axis; can try to avoid tight_layout/constrainted layout issues
+    :ivar fontsize: font size for text (and ultimate fallback when others not set)
     :ivar legend_colored_text: use colored text for legend labels rather than separate color blocks
-    :ivar legend_fontsize: The font size for the legend
+    :ivar legend_fontsize: The font size for the legend (defaults to fontsize)
     :ivar legend_frac_subplot_line: fraction of subplot size to use per line for spacing figure legend
     :ivar legend_frac_subplot_margin: fraction of subplot size to use for spacing figure legend above plots
     :ivar legend_frame: draw box around legend
     :ivar legend_loc: The location for the legend
-    :ivar legend_position_config: recipe for positioning figure border (default 1)
     :ivar legend_rect_border: whether to have black border around solid color boxes in legends
+    :ivar line_dash_styles: dict mapping line styles to detailed dash styles, default:  {'--': (3, 2), '-.': (4, 1, 1, 1)}
     :ivar line_labels: True if you want to automatically add legends when adding more than one line to subplots
+    :ivar linewidth: relative linewidth (at reference size)
+    :ivar linewidth_contour: linewidth for lines in filled contours
+    :ivar linewidth_meanlikes: linewidth for mean likelihood lines
     :ivar lineM: list of default line styles/colors (['-k','-r'...]) or name of a standard colormap (e.g. tab10)
     :ivar no_triangle_axis_labels: whether subplots in triangle plots should show axis labels if not at the edge
     :ivar norm_1d_density: whether to normolize 1D densities (otherwise normalized to unit peak value)
@@ -79,6 +85,11 @@ class GetDistPlotSettings(object):
     :ivar prob_label: label for the y axis in unnormalized 1D density plots
     :ivar prob_y_ticks: show ticks on y axis for 1D density plots
     :ivar progress: write out some status
+    :ivar scaling: True to scale down fonts and lines for smaller subplots; False to use fixed sizes.
+    :ivar scaling_max_axis_size: font sizes will only be scaled for subplot widths (in inches) smaller than this.
+    :ivar scaling_factor: factor by which to multiply the different of the axis size to the reference size when scaling font sizes
+    :ivar scaling_reference_size: axis width (in inches) at which font sizes are specified.
+    :ivar scatter_size: size of points in "3D" scatter plots
     :ivar shade_level_scale: shading contour colors are put at [0:1:spacing]**shade_level_scale
     :ivar shade_meanlikes: 2D shading uses mean likelihoods rather than marginalized density
     :ivar solid_colors: List of default colors for filled 2D plots or the name of a colormap (e.g. tab10).  If a list,
@@ -87,7 +98,7 @@ class GetDistPlotSettings(object):
     :ivar tight_layout: use tight_layout to layout, avoid overlaps and remove white space; if it doesn't work try constrained_layout
     :ivar title_limit: show parameter limits over 1D plots, 1 for first limit (68% default), 2 second, etc.
     :ivar title_limit_labels: whether or not to include parameter label when adding limits above 1D plots
-    :ivar title_limit_fontsize: font size to use for limits in plot titles
+    :ivar title_limit_fontsize: font size to use for limits in plot titles (defaults to axes_labelsize)
     """
 
     def __init__(self, subplot_size_inch=2, fig_width_inch=None):
@@ -99,6 +110,11 @@ class GetDistPlotSettings(object):
         :param subplot_size_inch: Determines the size of subplots, and hence default font sizes
         :param fig_width_inch: The width of the figure in inches, If set, forces fixed total size.
         """
+        self.scaling = True
+        self.scaling_reference_size = 3.5  # reference subplot size for font sizes etc.
+        self.scaling_max_axis_size = self.scaling_reference_size
+        self.scaling_factor = 2
+
         self.plot_meanlikes = False
         self.shade_meanlikes = False
         self.prob_label = None
@@ -111,7 +127,7 @@ class GetDistPlotSettings(object):
 
         self.plot_args = None
         self.solid_colors = ['#006FED', '#E03424', 'gray', '#009966', '#000866', '#336600', '#006633', 'm', 'r']
-        self.default_dash_styles = {'--': (3, 2), '-.': (4, 1, 1, 1)}
+        self.line_dash_styles = {'--': (3, 2), '-.': (4, 1, 1, 1)}
         self.line_labels = True
         self.num_shades = 80
         self.shade_level_scale = 1.8  # contour levels at [0:1:spacing]**shade_level_scale
@@ -120,10 +136,11 @@ class GetDistPlotSettings(object):
         self.tight_layout = True
         self.constrained_layout = False
         self.no_triangle_axis_labels = True
+
         # see http://www.scipy.org/Cookbook/Matplotlib/Show_colormaps
         self.colormap = "Blues"
         self.colormap_scatter = "jet"
-        self.colorbar_rotation = None  # e.g. -90
+        self.colorbar_tick_rotation = None  # e.g. -90
         self.colorbar_label_pad = 0
         self.colorbar_label_rotation = -90  # seems to cause problems with some versions, can set to zero
         self.colorbar_axes_fontsize = None
@@ -141,16 +158,23 @@ class GetDistPlotSettings(object):
         self.figure_legend_new_ax = False
 
         self.legend_rect_border = False
-        self.legend_position_config = 1
+        self.legend_position_config = 1  # recipe for positioning figure border (default 1, for non-GUI)
 
         self.legend_frac_subplot_margin = 0.1
         self.legend_frac_subplot_line = 0.1
-        self.legend_fontsize = None
+        self.legend_fontsize = 12
+
+        self.linewidth = 1
+        self.linewidth_contour = 0.6
+        self.linewidth_meanlikes = 0.5
 
         self.num_plot_contours = 2
         self.solid_contour_palefactor = 0.6
         self.alpha_filled_add = 0.85
         self.alpha_factor_contour_lines = 0.5
+
+        self.axes_fontsize = 11
+        self.axes_labelsize = 14
 
         self.axis_marker_color = 'gray'
         self.axis_marker_ls = '--'
@@ -161,9 +185,35 @@ class GetDistPlotSettings(object):
         self.axis_tick_x_rotation = 0
         self.axis_tick_y_rotation = 0
 
+        self.scatter_size = 3
+
+        self.fontsize = 12
+
         self.title_limit = 0
         self.title_limit_labels = True
         self.title_limit_fontsize = None
+
+    def _numerical_fontsize(self, size):
+        size = size or self.fontsize or 11
+        if isinstance(size, six.string_types):
+            scale = font_scalings.get(size)
+            return self.fontsize * (scale or 1)
+        return size or self.fontsize
+
+    def scaled_fontsize(self, ax_size, var, default=None):
+        var = self._numerical_fontsize(var or default)
+        if not self.scaling or self.scaling_max_axis_size is not None and not self.scaling_max_axis_size:
+            return var
+        if self.scaling_max_axis_size is None or ax_size < (self.scaling_max_axis_size or self.scaling_reference_size):
+            return max(5, var + self.scaling_factor * (ax_size - self.scaling_reference_size))
+        else:
+            return var + 2 * (self.scaling_max_axis_size - self.scaling_reference_size)
+
+    def scaled_linewidth(self, ax_size, linewidth):
+        linewidth = linewidth or self.linewidth
+        if not self.scaling:
+            return linewidth
+        return max(0.6, linewidth * ax_size / self.scaling_reference_size)
 
     def setWithSubplotSize(self, size_inch=3.5, size_mm=None):
         """
@@ -176,16 +226,6 @@ class GetDistPlotSettings(object):
         if size_mm:
             size_inch = size_mm * 0.0393700787
         self.subplot_size_inch = size_inch
-        self.lab_fontsize = 7 + 2 * self.subplot_size_inch
-        self.axes_fontsize = 4 + 2 * self.subplot_size_inch
-        self.legend_fontsize = self.axes_fontsize
-        self.font_size = self.lab_fontsize
-        self.lw1 = self.subplot_size_inch / 3.0
-        self.lw_contour = self.lw1 * 0.6
-        self.lw_likes = self.subplot_size_inch / 6.0
-        self.scatter_size = 3
-        if size_inch > 4:
-            self.scatter_size = size_inch * 2
 
     def rcSizes(self, axes_fontsize=None, lab_fontsize=None, legend_fontsize=None):
         """
@@ -195,10 +235,10 @@ class GetDistPlotSettings(object):
         :param lab_fontsize: The font size for the plot's axis labels (default: axes.labelsize)
         :param legend_fontsize: The font size for the plot's legend (default: legend.fontsize)
         """
-        self.font_size = rcParams['font.size']
-        self.legend_fontsize = legend_fontsize or rcParams['legend.fontsize']
-        self.lab_fontsize = lab_fontsize or rcParams['axes.labelsize']
-        self.axes_fontsize = axes_fontsize or rcParams['xtick.labelsize']
+        self.fontsize = self._numerical_fontsize(rcParams['font.size'])
+        self.legend_fontsize = legend_fontsize or self._numerical_fontsize(rcParams['legend.fontsize'])
+        self.axes_labelsize = lab_fontsize or self._numerical_fontsize(rcParams['axes.labelsize'])
+        self.axes_fontsize = axes_fontsize or self._numerical_fontsize(rcParams['xtick.labelsize'])
 
 
 defaultSettings = GetDistPlotSettings()
@@ -236,7 +276,7 @@ def getSinglePlotter(ratio=3 / 4., width_inch=6, **kwargs):
     return plotter
 
 
-def getSubplotPlotter(subplot_size=2, width_inch=None, **kwargs):
+def getSubplotPlotter(subplot_size=2, width_inch=None, rc_sizes=False, **kwargs):
     """
     Get a :class:`~.plots.GetDistPlotter` for making an array of subplots.
 
@@ -249,6 +289,7 @@ def getSubplotPlotter(subplot_size=2, width_inch=None, **kwargs):
 
     :param subplot_size: The size of each subplot in inches
     :param width_inch: Optional total width in inches
+    :param rc_sizes: set default font sizes from rcParams
     :param kwargs: arguments for :class:`GetDistPlotter`
     :return: The :class:`GetDistPlotter` instance
     """
@@ -256,11 +297,8 @@ def getSubplotPlotter(subplot_size=2, width_inch=None, **kwargs):
     plotter.settings.setWithSubplotSize(subplot_size)
     if width_inch:
         plotter.settings.fig_width_inch = width_inch
-        if not kwargs.get('settings'):
+        if not kwargs.get('settings') and rc_sizes:
             plotter.settings.rcSizes()
-    if subplot_size < 3 and kwargs.get('settings') is None and not width_inch:
-        plotter.settings.axes_fontsize += 2
-        plotter.settings.legend_fontsize = plotter.settings.lab_fontsize + 1
     return plotter
 
 
@@ -625,7 +663,7 @@ class GetDistPlotter(object):
         :param ls: The line style
         :return: The dash style.
         """
-        return self.settings.default_dash_styles.get(ls)
+        return self.settings.line_dash_styles.get(ls)
 
     def _get_default_ls(self, plotno=0):
         """
@@ -668,7 +706,7 @@ class GetDistPlotter(object):
         if 'color' not in args:
             args['color'] = self._get_default_ls(plotno)[1]
         if 'lw' not in args:
-            args['lw'] = self.settings.lw1
+            args['lw'] = self._scaled_linewidth(self.settings.linewidth)
         return args
 
     def _get_color(self, plotno, **kwargs):
@@ -824,7 +862,7 @@ class GetDistPlotter(object):
         if kwargs.get('dashes'):
             l.set_dashes(kwargs['dashes'])
         if self.settings.plot_meanlikes:
-            kwargs['lw'] = self.settings.lw_likes
+            kwargs['lw'] = self._scaled_linewidth(self.settings.linewidth_likes)
             ax.plot(density.x, density.likes, **kwargs)
         if title_limit:
             if isinstance(root, MixtureND):
@@ -837,7 +875,8 @@ class GetDistPlotter(object):
                 caption = texs[0]
             if '---' not in caption:
                 ax.set_title('$' + caption + '$',
-                             fontsize=self.settings.title_limit_fontsize or self.settings.axes_fontsize)
+                             fontsize=self._scaled_fontsize(self.settings.title_limit_fontsize,
+                                                            self.settings.axes_fontsize))
 
         return density.bounds()
 
@@ -936,13 +975,13 @@ class GetDistPlotter(object):
                 self.contours_added[proxyIx] = (
                     plt.Rectangle((0, 0), 1, 1, fc=matplotlib.colors.to_rgb(CS.tcolors[-1][0])))
             ax.contour(density.x, density.y, density.P, levels[:1], colors=CS.tcolors[-1],
-                       linewidths=self.settings.lw_contour, alpha=alpha * self.settings.alpha_factor_contour_lines,
-                       **clean_args(kwargs))
+                       linewidths=self._scaled_linewidth(self.settings.linewidth_contour),
+                       alpha=alpha * self.settings.alpha_factor_contour_lines, **clean_args(kwargs))
         else:
             args = self._get_line_styles(plotno, **kwargs)
             linestyles = [args['ls']]
             cols = [args['color']]
-            lws = args['lw']  # not lw_contour is only used for filled contours
+            lws = args['lw']  # not linewidth_contour is only used for filled contours
             kwargs = self._get_plot_args(plotno, **kwargs)
             kwargs['alpha'] = alpha
             CS = ax.contour(density.x, density.y, density.P, sorted(contour_levels), colors=cols, linestyles=linestyles,
@@ -1282,11 +1321,9 @@ class GetDistPlotter(object):
 
     def _set_axis_properties(self, axis, rotation=0, labelsize=None):
         self._auto_ticks(axis)
-        labelsize = labelsize or self.settings.axes_fontsize
+        labelsize = self._scaled_fontsize(labelsize, self.settings.axes_fontsize)
         axis.set_tick_params(which='major', labelrotation=rotation, labelsize=labelsize)
-        axis.get_offset_text().set_fontsize(labelsize * 3 / 4 if
-                                            not isinstance(labelsize,
-                                                           six.string_types) and labelsize > 7 else labelsize)
+        axis.get_offset_text().set_fontsize(labelsize * 3 / 4 if labelsize > 7 else labelsize)
         if isinstance(axis, matplotlib.axis.YAxis):
             if abs(rotation - 90) < 45:
                 for ticklabel in axis.get_ticklabels():
@@ -1356,9 +1393,10 @@ class GetDistPlotter(object):
         :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
         """
         ax = ax or plt.gca()
-        ax.set_xlabel(param.latexLabel(), fontsize=self.settings.lab_fontsize,
+        lab_fontsize = self._scaled_fontsize(self.settings.axes_labelsize)
+        ax.set_xlabel(param.latexLabel(), fontsize=lab_fontsize,
                       verticalalignment='baseline',
-                      labelpad=4 + self.settings.font_size)  # test_size because need a number not e.g. 'medium'
+                      labelpad=4 + lab_fontsize)  # test_size because need a number not e.g. 'medium'
 
     def set_ylabel(self, param, ax=None):
         """
@@ -1368,7 +1406,7 @@ class GetDistPlotter(object):
         :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
         """
         ax = ax or plt.gca()
-        ax.set_ylabel(param.latexLabel(), fontsize=self.settings.lab_fontsize)
+        ax.set_ylabel(param.latexLabel(), fontsize=self._scaled_fontsize(self.settings.axes_labelsize))
 
     def plot_1d(self, roots, param, marker=None, marker_color=None, label_right=False, title_limit=None,
                 no_ylabel=False, no_ytick=False, no_zero=False, normalized=False, param_renames={}, ax=None, **kwargs):
@@ -1494,7 +1532,9 @@ class GetDistPlotter(object):
         if self.settings.fig_width_inch is not None:
             figsize = (self.settings.fig_width_inch,
                        (self.settings.fig_width_inch * self.plot_row * ystretch) / (self.plot_col * xstretch))
+            self._ax_width = self.settings.fig_width_inch / self.plot_col
         else:
+            self._ax_width = self.settings.subplot_size_inch * xstretch
             figsize = (self.settings.subplot_size_inch * self.plot_col * xstretch,
                        self.settings.subplot_size_inch * self.plot_row * ystretch)
         if self.settings.figure_legend_new_ax:
@@ -1503,7 +1543,6 @@ class GetDistPlotter(object):
             self.fig = plt.figure(figsize=figsize, constrained_layout=True)
         else:
             self.fig = plt.figure(figsize=figsize)
-
         if self.settings.figure_legend_new_ax:
             ratios = (0.1, 1, 0.001)  # keep empty slots for possible legends outside main subplot figure
             # set_height_ratios later appears not to work
@@ -1652,8 +1691,8 @@ class GetDistPlotter(object):
             lines = self.contours_added
         args = kwargs.copy()
         args['ncol'] = legend_ncol
-        if fontsize or self.settings.legend_fontsize:
-            args['prop'] = {'size': fontsize or self.settings.legend_fontsize}
+        args['prop'] = {
+            'size': self._scaled_fontsize(fontsize or self.settings.legend_fontsize or self.settings.axes_labelsize)}
         if colored_text:
             args['handlelength'] = 0
             args['handletextpad'] = 0
@@ -1725,6 +1764,12 @@ class GetDistPlotter(object):
                     continue
                 text.set_color(c)
         return self.legend
+
+    def _scaled_fontsize(self, var, default=None):
+        return self.settings.scaled_fontsize(self._ax_width, var, default)
+
+    def _scaled_linewidth(self, linewidth):
+        return self.settings.scaled_linewidth(self._ax_width, linewidth)
 
     def _subplots_adjust(self):
         if not self.settings.constrained_layout and self._share_kwargs:
@@ -1969,7 +2014,7 @@ class GetDistPlotter(object):
         self.finish_plot()
         return plot_col, plot_row
 
-    def _auto_ticks(self, axis, max_ticks=None, steps=[1, 2, 2.5, 4, 5, 6, 8, 10], **kwargs):
+    def _auto_ticks(self, axis, max_ticks=None, steps=[1, 2, 4, 5, 6, 8, 10], **kwargs):
         axis.set_major_locator(
             BoundedMaxNLocator(nbins=max_ticks or self.settings.axis_tick_max_labels, steps=steps, **kwargs))
 
@@ -2180,8 +2225,8 @@ class GetDistPlotter(object):
             cb = self.fig.colorbar(self.last_scatter, cax=self.fig.add_axes([0.9, bottom, 0.03, 0.35]))
             cb.ax.yaxis.set_ticks_position('left')
             cb.ax.yaxis.set_label_position('left')
-            self.rotate_yticklabels(cb.ax, rotation=self.settings.colorbar_rotation or 0,
-                                    labelsize=self.settings.colorbar_axes_fontsize or self.settings.axes_fontsize)
+            self.rotate_yticklabels(cb.ax, rotation=self.settings.colorbar_tick_rotation or 0,
+                                    labelsize=self.settings.colorbar_axes_fontsize)
             self.add_colorbar_label(cb, col_param, label_rotation=-self.settings.colorbar_label_rotation)
 
         labels = self._default_legend_labels(legend_labels, roots1d)
@@ -2340,8 +2385,7 @@ class GetDistPlotter(object):
         if not ax_args.get('color_label_in_axes'):
             self.add_colorbar_label(cb, param)
         self._set_axis_properties(cb.ax.yaxis if orientation == 'vertical' else cb.ax.xaxis,
-                                  self.settings.colorbar_rotation or 0,
-                                  self.settings.colorbar_axes_fontsize or self.settings.axes_fontsize)
+                                  self.settings.colorbar_tick_rotation or 0, self.settings.colorbar_axes_fontsize)
         return cb
 
     def add_line(self, xdata, ydata, zorder=0, color=None, ls=None, ax=None, **kwargs):
@@ -2370,12 +2414,12 @@ class GetDistPlotter(object):
         :param param: a :class:`~.paramnames.ParamInfo` with label for the plotted parameter
         :param label_rotation: If set rotates the label (degrees)
         """
-        if label_rotation is None:
-            label_rotation = self.settings.colorbar_label_rotation
+
+        label_rotation = label_rotation or self.settings.colorbar_label_rotation
         kwargs = {}
         if label_rotation and 10 < abs(label_rotation) < 170:
             kwargs['va'] = 'bottom'
-        cb.set_label(param.latexLabel(), fontsize=self.settings.lab_fontsize,
+        cb.set_label(param.latexLabel(), fontsize=self._scaled_fontsize(self.settings.axes_labelsize),
                      rotation=label_rotation, labelpad=self.settings.colorbar_label_pad, **kwargs)
 
     def _makeParamObject(self, names, samples, obj=None):
@@ -2638,7 +2682,8 @@ class GetDistPlotter(object):
                    index or [y,x] coordinate of subplot to use, or default to current axes.
         :param kwargs: keyword arguments for :func:`~matplotlib:matplotlib.pyplot.text`
         """
-        args = {'horizontalalignment': 'right', 'verticalalignment': 'center'}
+        args = {'horizontalalignment': 'right' if x > 0.5 else 'left', 'verticalalignment': 'center',
+                'fontsize': self._scaled_fontsize(self.settings.fontsize)}
         args.update(kwargs)
         if isinstance(ax, int):
             ax = self.fig.axes[ax]

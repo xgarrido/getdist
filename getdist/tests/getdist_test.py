@@ -9,6 +9,7 @@ import subprocess
 from getdist import loadMCSamples, plots, IniFile
 from getdist.tests.test_distributions import Test2DDistributions, Gaussian1D, Gaussian2D
 from getdist.mcsamples import MCSamples
+import pylab as plt
 
 
 class GetDistFileTest(unittest.TestCase):
@@ -234,3 +235,36 @@ class GetDistTest(unittest.TestCase):
         g.plot_2d(samples, 'x', 'y', filled=True)
         g.add_y_bands(0.2, 1.5)
         g.add_x_bands(-0.1, 1.2, color='red')
+
+    def _plot_with_params(self, scale, x, default=False):
+        from getdist.matplotlib_ext import BoundedMaxNLocator
+
+        fig, axs = plt.subplots(1, 1, figsize=(x, 1))
+        axs.plot([-scale, scale], [0, 1])
+        axs.set_yticks([])
+        if not default:
+            axs.xaxis.set_major_locator(BoundedMaxNLocator())
+        fig.suptitle("%s: scale %g, size %g" % ('Default' if default else 'Bounded', scale, x), fontsize=6)
+        return fig, axs
+
+
+class UtilTest(unittest.TestCase):
+    """test some getdist routines and plotting"""
+
+    def test_locator(self):
+        import matplotlib.backends.backend_pdf
+        temp = os.path.join(tempfile.gettempdir(), 'output.pdf')
+        pdf = matplotlib.backends.backend_pdf.PdfPages()
+        for x in np.arange(1, 5, 0.5):
+            for scale in [1e-4, 1e-2, 1e-1, 1, 10, 1000]:
+                fig, ax = self._plot_with_params(scale, x)
+                pdf.savefig(fig, bbox_inches='tight')
+                self.assertTrue(len(ax.get_xticks()) > 0 and (x < 2 or len(ax.get_xticks()) > 1),
+                                "Too few ticks for %g %g" % (scale, x))
+                plt.close(fig)
+                fig, ax = self._plot_with_params(scale, x, True)
+                pdf.savefig(fig, bbox_inches='tight')
+                plt.close(fig)
+                del fig
+        pdf.close()
+        os.remove(temp)
