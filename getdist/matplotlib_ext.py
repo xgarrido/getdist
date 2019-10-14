@@ -77,9 +77,11 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
             min_n_ticks = min(nbins, 3)
             if self._nbins != 'auto':
                 nbins = min(self._nbins, nbins)
-
-            locs = self._spaced_ticks(vmin + delta, vmax - delta, label_len * 1.1, min_n_ticks, nbins)
-            locs = [x for x in locs if vmin + delta <= x <= vmax - delta]
+            while True:
+                locs = self._spaced_ticks(vmin + delta, vmax - delta, label_len * 1.1, min_n_ticks, nbins)
+                if len(locs) or min_n_ticks == 1:
+                    break
+                min_n_ticks -= 1
             if cos_rotation > 0.05 and isinstance(formatter, ticker.ScalarFormatter) and len(locs) > 1:
 
                 def _get_Label_len():
@@ -94,6 +96,13 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                     char_len = len(label)
                     if '.' in label:
                         char_len -= 0.4
+                    if len(locs) > 1:
+                        label = form[i:i2 + 1] % locs[-1]
+                        char_len2 = len(label)
+                        if '.' in label:
+                            char_len2 -= 0.4
+                        char_len = max(char_len, char_len2)
+
                     return size_ratio * max(2.0, char_len * font_aspect) * (vmax - vmin)
 
                 label_len = _get_Label_len()
@@ -111,31 +120,44 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                         nbins = min(self._nbins, nbins)
                     min_n_ticks = min(min_n_ticks, nbins)
                     retry = True
+                    try_shorter = True
                     while min_n_ticks:
                         locs = self._spaced_ticks(vmin + delta, vmax - delta, label_len * 1.1, min_n_ticks, nbins)
-                        locs = [x for x in locs if vmin + delta <= x <= vmax - delta]
                         if len(locs):
                             new_len = _get_Label_len()
                             if not np.isclose(new_len, label_len):
+                                label_len = new_len
                                 delta = label_len / 2 if self.bounded_prune else 0
                                 locs = self._bounded_prune(locs, vmin, vmax, label_len)
-                                label_len = new_len
                                 if retry:
                                     retry = False
                                     continue
-                        if len(locs) < 2 and _preferred_steps is None and label_len < (vmax - vmin) / 2:
+                        elif min_n_ticks > 1 and try_shorter:
+                            # Original label length may be too long for good ticks which exist
+                            delta /= 2
+                            label_len /= 2
+                            try_shorter = False
+                            locs = self._spaced_ticks(vmin + delta, vmax - delta, label_len * 1.1, min_n_ticks, nbins)
+                            if len(locs):
+                                label_len = _get_Label_len()
+                                delta = label_len / 2 if self.bounded_prune else 0
+                                continue
+
+                        if len(locs) < 2 and _preferred_steps is None \
+                                and label_len < (vmax - vmin) / (2 if min_n_ticks > 1 else 1.05):
                             _preferred_steps = self._steps
-                            min_n_ticks = 2
+                            min_n_ticks = min(min_n_ticks, 2)
                             self.set_params(steps=[1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 9, 10])
                             continue
                         if min_n_ticks == 1 and len(locs) == 1 or len(locs) >= min_n_ticks > 1 \
                                 and locs[1] - locs[0] > _get_Label_len() * 1.1:
                             break
                         min_n_ticks -= 1
-                    if not min_n_ticks and size_ratio * font_aspect < 0.9:
+                    if len(locs) <= 1 and size_ratio * font_aspect < 0.9:
                         # if no ticks, check for short integer number location in the range that may have been missed
                         # because adding any other values would make label length much longer
-                        loc = round(vmin + vmax) / 2
+                        scale, offset = ticker.scale_range(vmin, vmax, 1)
+                        loc = round((vmin + vmax) / (2 * scale)) * scale
                         if vmin < loc < vmax:
                             locs = [loc]
                             label_len = _get_Label_len()
@@ -158,11 +180,13 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
 
         istep = np.nonzero(steps >= (raw_step if nbins > 1 else ((_vmax - _vmin) / 2)))[0]
         if len(istep) == 0:
-            return []
+            if steps[-1] < label_len:
+                return []
+            istep = len(steps) - 1
         else:
             istep = istep[0]
 
-        # This is an upper limit; move to smaller steps if necessary.
+        # This is an upper limit; move to smaller or half-phase steps if necessary.
         for istep in reversed(range(istep + 1)):
             step = steps[istep]
 
@@ -175,16 +199,35 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
             else:
                 best_vmin = (_vmin // step) * step
 
-            # Find tick locations spanning the vmin-vmax range, taking into
-            # account degradation of precision when there is a large offset.
-            # The edge ticks beyond vmin and/or vmax are needed for the
-            # "round_numbers" autolimit mode.
-            edge = ticker._Edge_integer(step, offset)
-            low = edge.le(_vmin - best_vmin)
-            high = edge.ge(_vmax - best_vmin)
-            ticks = np.arange(low, high + 1) * step + best_vmin
-            # Count only the ticks that will be displayed.
-            nticks = ((ticks <= _vmax) & (ticks >= _vmin)).sum()
-            if nticks >= min_ticks:
-                break
-        return ticks + offset
+            low = _ge(_vmin - best_vmin, offset, step)
+            high = _le(_vmax - best_vmin, offset, step)
+            if high - low + 1 >= min_ticks:
+                return np.arange(low, high + 1) * step + (best_vmin + offset)
+
+        return []
+
+
+def _closeto(ms, edge, offset, step):
+    if offset > 0:
+        digits = np.log10(offset / step)
+        tol = max(1e-10, 10 ** (digits - 12))
+        tol = min(0.4999, tol)
+    else:
+        tol = 1e-10
+    return abs(ms - edge) < tol
+
+
+def _le(x, offset, step):
+    """Return the largest n: n*step <= x."""
+    d, m = divmod(x, step)
+    if _closeto(m / step, 1, abs(offset), step):
+        return d + 1
+    return d
+
+
+def _ge(x, offset, step):
+    """Return the smallest n: n*step >= x."""
+    d, m = divmod(x, step)
+    if _closeto(m / step, 0, abs(offset), step):
+        return d
+    return d + 1

@@ -236,35 +236,46 @@ class GetDistTest(unittest.TestCase):
         g.add_y_bands(0.2, 1.5)
         g.add_x_bands(-0.1, 1.2, color='red')
 
-    def _plot_with_params(self, scale, x, default=False):
-        from getdist.matplotlib_ext import BoundedMaxNLocator
-
-        fig, axs = plt.subplots(1, 1, figsize=(x, 1))
-        axs.plot([-scale, scale], [0, 1])
-        axs.set_yticks([])
-        if not default:
-            axs.xaxis.set_major_locator(BoundedMaxNLocator())
-        fig.suptitle("%s: scale %g, size %g" % ('Default' if default else 'Bounded', scale, x), fontsize=6)
-        return fig, axs
-
 
 class UtilTest(unittest.TestCase):
     """test some getdist routines and plotting"""
 
+    def _plot_with_params(self, scale, x, off, default=False):
+        from getdist.matplotlib_ext import BoundedMaxNLocator
+
+        fig, axs = plt.subplots(1, 1, figsize=(x, 1))
+        axs.plot([off - scale, off + scale], [0, 1])
+        axs.set_yticks([])
+        if not default:
+            axs.xaxis.set_major_locator(BoundedMaxNLocator(steps=[1, 2, 4, 5, 6, 8, 10]))
+        fig.suptitle("%s: scale %g, size %g, offset %g" % ('Default' if default else 'Bounded', scale, x, off),
+                     fontsize=6)
+        return fig, axs
+
+    def test_one_locator(self):
+        # for debugging
+        self._plot_with_params(0.1, 3, 0.1/3)
+        plt.draw()
+
     def test_locator(self):
         import matplotlib.backends.backend_pdf
-        temp = os.path.join(tempfile.gettempdir(), 'output.pdf')
-        pdf = matplotlib.backends.backend_pdf.PdfPages()
+        temp = os.path.join(os.environ.get('TMPSMALL', tempfile.gettempdir()), 'output.pdf')
+        pdf = matplotlib.backends.backend_pdf.PdfPages(temp)
+        fails = []
         for x in np.arange(1, 5, 0.5):
             for scale in [1e-4, 1e-2, 1e-1, 1, 10, 1000]:
-                fig, ax = self._plot_with_params(scale, x)
-                pdf.savefig(fig, bbox_inches='tight')
-                self.assertTrue(len(ax.get_xticks()) > 0 and (x < 2 or len(ax.get_xticks()) > 1),
-                                "Too few ticks for %g %g" % (scale, x))
-                plt.close(fig)
-                fig, ax = self._plot_with_params(scale, x, True)
-                pdf.savefig(fig, bbox_inches='tight')
-                plt.close(fig)
-                del fig
+                for off in [scale / 3, 1, 5 * scale]:
+                    fig, ax = self._plot_with_params(scale, x, off)
+                    pdf.savefig(fig, bbox_inches='tight')
+                    if not len(ax.get_xticks()) or x >= 2 and len(ax.get_xticks()) < 2:
+                        fails.append([scale, x, off])
+                    plt.close(fig)
+                    fig, ax = self._plot_with_params(scale, x, off, True)
+                    pdf.savefig(fig, bbox_inches='tight')
+                    plt.close(fig)
+                    del fig
         pdf.close()
-        os.remove(temp)
+        if not os.environ.get('TMPSMALL'):
+            os.remove(temp)
+
+        self.assertFalse(len(fails), "Too few ticks for %s" % fails)
