@@ -46,6 +46,7 @@ class GetDistPlotSettings(object):
     :ivar axis_marker_lw: The line width for a marker
     :ivar axis_tick_powerlimits: exponents at which to use scientific notation for axis tick labels
     :ivar axis_tick_max_labels: maximum number of tick labels per axis
+    :ivar axis_tick_step_groups: steps to try for axis ticks, in grouped in order of preference
     :ivar axis_tick_x_rotation: The rotation for the x tick label in degrees
     :ivar axis_tick_y_rotation: The rotation for the y tick label in degrees
     :ivar colorbar_label_pad: padding for the colorbar label
@@ -182,6 +183,7 @@ class GetDistPlotSettings(object):
 
         self.axis_tick_powerlimits = (-4, 5)
         self.axis_tick_max_labels = 7
+        self.axis_tick_step_groups = [[1, 2, 5, 10], [2.5], [3, 4, 6, 8], [1.5, 7, 9]]
         self.axis_tick_x_rotation = 0
         self.axis_tick_y_rotation = 0
 
@@ -2014,9 +2016,10 @@ class GetDistPlotter(object):
         self.finish_plot()
         return plot_col, plot_row
 
-    def _auto_ticks(self, axis, max_ticks=None, steps=[1, 2, 4, 5, 6, 8, 10], **kwargs):
+    def _auto_ticks(self, axis, max_ticks=None):
         axis.set_major_locator(
-            BoundedMaxNLocator(nbins=max_ticks or self.settings.axis_tick_max_labels, steps=steps, **kwargs))
+            BoundedMaxNLocator(nbins=max_ticks or self.settings.axis_tick_max_labels,
+                               step_groups=self.settings.axis_tick_step_groups))
 
     @staticmethod
     def _inner_ticks(ax, top_and_left=True):

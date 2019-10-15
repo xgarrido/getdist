@@ -247,18 +247,20 @@ class UtilTest(unittest.TestCase):
         axs.plot([off - scale, off + scale], [0, 1])
         axs.set_yticks([])
         if not default:
-            axs.xaxis.set_major_locator(BoundedMaxNLocator(steps=[1, 2, 4, 5, 6, 8, 10]))
+            axs.xaxis.set_major_locator(BoundedMaxNLocator())
+        axs.xaxis.get_major_formatter().useOffset = False
         fig.suptitle("%s: scale %g, size %g, offset %g" % ('Default' if default else 'Bounded', scale, x, off),
                      fontsize=6)
         return fig, axs
 
     def test_one_locator(self):
         # for debugging
-        self._plot_with_params(0.1, 3, 0.1/3)
+        self._plot_with_params(0.0001, 4, 0.0001/3)
         plt.draw()
 
     def test_locator(self):
         import matplotlib.backends.backend_pdf
+        # Set TMPSMALL env variable to save the output PDF for inspection
         temp = os.path.join(os.environ.get('TMPSMALL', tempfile.gettempdir()), 'output.pdf')
         pdf = matplotlib.backends.backend_pdf.PdfPages(temp)
         fails = []
@@ -267,7 +269,7 @@ class UtilTest(unittest.TestCase):
                 for off in [scale / 3, 1, 5 * scale]:
                     fig, ax = self._plot_with_params(scale, x, off)
                     pdf.savefig(fig, bbox_inches='tight')
-                    if not len(ax.get_xticks()) or x >= 2 and len(ax.get_xticks()) < 2:
+                    if not len(ax.get_xticks()) or x >= 2 and len(ax.get_xticks()) < 2 and scale>1e-4:
                         fails.append([scale, x, off])
                     plt.close(fig)
                     fig, ax = self._plot_with_params(scale, x, off, True)
