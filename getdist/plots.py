@@ -6,8 +6,13 @@ import matplotlib
 import sys
 import six
 import warnings
+import logging
 
 matplotlib.use('Agg', warn=False)
+import matplotlib.patches
+import matplotlib.colors
+import matplotlib.gridspec
+import matplotlib.axis
 from matplotlib import cm, rcParams
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
@@ -18,10 +23,10 @@ import getdist
 from getdist import MCSamples, loadMCSamples, ParamNames, ParamInfo, IniFile
 from getdist.chains import chainFiles
 from getdist.paramnames import escapeLatex, makeList, mergeRenames
-from getdist.densities import Density1D, Density2D
+from getdist.densities import Density2D
 from getdist.gaussian_mixtures import MixtureND
 from getdist.matplotlib_ext import BoundedMaxNLocator, SciFuncFormatter
-import logging
+from getdist._base import _BaseObject
 
 """Plotting scripts for GetDist outputs"""
 
@@ -33,7 +38,7 @@ class GetDistPlotError(Exception):
     pass
 
 
-class GetDistPlotSettings(object):
+class GetDistPlotSettings(_BaseObject):
     """
     Settings class (colors, sizes, font, styles etc.)
 
@@ -54,49 +59,54 @@ class GetDistPlotSettings(object):
     :ivar colorbar_tick_rotation: angle to rotate colorbar tick labels
     :ivar colorbar_axes_fontsize: size for tick labels on colorbar (None for default to match axes font size)
     :ivar colormap: a `Matplotlib color map <https://www.scipy.org/Cookbook/Matplotlib/Show_colormaps>`_ for shading
-    :ivar colormap_scatter: a `Matplotlib color map <https://www.scipy.org/Cookbook/Matplotlib/Show_colormaps>`_ for 3D plots
+    :ivar colormap_scatter: a Matplotlib `color map <https://www.scipy.org/Cookbook/Matplotlib/Show_colormaps>`_
+                            for 3D scatter plots
     :ivar constrained_layout: use matplotlib's constrained-layout to fit plots within the figure and avoid overlaps
     :ivar fig_width_inch: The width of the figure in inches
     :ivar figure_legend_frame: draw box around figure legend
     :ivar figure_legend_loc: The location for the figure legend
     :ivar figure_legend_ncol: number of columns for figure legend
-    :ivar figure_legend_new_ax: put figure legend in separate axis; can try to avoid tight_layout/constrainted layout issues
     :ivar fontsize: font size for text (and ultimate fallback when others not set)
     :ivar legend_colored_text: use colored text for legend labels rather than separate color blocks
     :ivar legend_fontsize: The font size for the legend (defaults to fontsize)
-    :ivar legend_frac_subplot_line: fraction of subplot size to use per line for spacing figure legend
     :ivar legend_frac_subplot_margin: fraction of subplot size to use for spacing figure legend above plots
     :ivar legend_frame: draw box around legend
     :ivar legend_loc: The location for the legend
     :ivar legend_rect_border: whether to have black border around solid color boxes in legends
-    :ivar line_dash_styles: dict mapping line styles to detailed dash styles, default:  {'--': (3, 2), '-.': (4, 1, 1, 1)}
+    :ivar line_dash_styles: dict mapping line styles to detailed dash styles,
+                            default:  {'--': (3, 2), '-.': (4, 1, 1, 1)}
     :ivar line_labels: True if you want to automatically add legends when adding more than one line to subplots
+    :ivar line_styles: list of default line styles/colors (['-k','-r','--C0',...]) or name of a standard colormap
+                       (e.g. tab10), or a list of tuples of line styles and colors for each line
     :ivar linewidth: relative linewidth (at reference size)
     :ivar linewidth_contour: linewidth for lines in filled contours
     :ivar linewidth_meanlikes: linewidth for mean likelihood lines
-    :ivar lineM: list of default line styles/colors (['-k','-r'...]) or name of a standard colormap (e.g. tab10)
     :ivar no_triangle_axis_labels: whether subplots in triangle plots should show axis labels if not at the edge
     :ivar norm_1d_density: whether to normolize 1D densities (otherwise normalized to unit peak value)
     :ivar norm_prob_label: label for the y axis in normalized 1D density plots
     :ivar num_plot_contours: number of contours to plot in 2D plots (up to number of contours in analysis settings)
     :ivar num_shades: number of distinct colors to use for shading shaded 2D plots
     :ivar param_names_for_labels: file name of .paramnames file to use for overriding parameter labels for plotting
-    :ivar plot_args: dict, or list of dicts, giving settings like color, ls, alpha, etc. to apply for a plot or each line added
+    :ivar plot_args: dict, or list of dicts, giving settings like color, ls, alpha, etc. to apply for a plot or each
+                     line added
     :ivar plot_meanlikes: include mean likelihood lines in 1D plots
     :ivar prob_label: label for the y axis in unnormalized 1D density plots
     :ivar prob_y_ticks: show ticks on y axis for 1D density plots
     :ivar progress: write out some status
     :ivar scaling: True to scale down fonts and lines for smaller subplots; False to use fixed sizes.
     :ivar scaling_max_axis_size: font sizes will only be scaled for subplot widths (in inches) smaller than this.
-    :ivar scaling_factor: factor by which to multiply the different of the axis size to the reference size when scaling font sizes
+    :ivar scaling_factor: factor by which to multiply the different of the axis size to the reference size when
+                          scaling font sizes
     :ivar scaling_reference_size: axis width (in inches) at which font sizes are specified.
     :ivar scatter_size: size of points in "3D" scatter plots
     :ivar shade_level_scale: shading contour colors are put at [0:1:spacing]**shade_level_scale
     :ivar shade_meanlikes: 2D shading uses mean likelihoods rather than marginalized density
     :ivar solid_colors: List of default colors for filled 2D plots or the name of a colormap (e.g. tab10).  If a list,
                         each element is either a color, or a tuple of values for different contour levels.
-    :ivar solid_contour_palefactor: factor by which to make 2D outer filled contours paler when only specifying one contour color
-    :ivar tight_layout: use tight_layout to layout, avoid overlaps and remove white space; if it doesn't work try constrained_layout
+    :ivar solid_contour_palefactor: factor by which to make 2D outer filled contours paler when only specifying
+                                    one contour color
+    :ivar tight_layout: use tight_layout to layout, avoid overlaps and remove white space; if it doesn't work
+                        try constrained_layout
     :ivar title_limit: show parameter limits over 1D plots, 1 for first limit (68% default), 2 second, etc.
     :ivar title_limit_labels: whether or not to include parameter label when adding limits above 1D plots
     :ivar title_limit_fontsize: font size to use for limits in plot titles (defaults to axes_labelsize)
@@ -117,23 +127,23 @@ class GetDistPlotSettings(object):
         self.scaling_factor = 2
 
         self.plot_meanlikes = False
-        self.shade_meanlikes = False
         self.prob_label = None
         # self.prob_label = 'Probability'
         self.norm_prob_label = 'P'
         self.prob_y_ticks = False
         self.norm_1d_density = False
         # : line styles/colors
-        self.lineM = ['-k', '-r', '-b', '-g', '-m', '-c', '-y', '--k', '--r', '--b', '--g', '--m']
+        self.line_styles = ['-k', '-r', '-b', '-g', '-m', '-c', '-y', '--k', '--r', '--b', '--g', '--m']
 
         self.plot_args = None
-        self.solid_colors = ['#006FED', '#E03424', 'gray', '#009966', '#000866', '#336600', '#006633', 'm', 'r']
         self.line_dash_styles = {'--': (3, 2), '-.': (4, 1, 1, 1)}
         self.line_labels = True
         self.num_shades = 80
         self.shade_level_scale = 1.8  # contour levels at [0:1:spacing]**shade_level_scale
-        self.fig_width_inch = fig_width_inch  # if you want to force specific fixed width
+
         self.progress = False
+
+        self.fig_width_inch = fig_width_inch  # if you want to force specific fixed width
         self.tight_layout = True
         self.constrained_layout = False
         self.no_triangle_axis_labels = True
@@ -141,29 +151,25 @@ class GetDistPlotSettings(object):
         # see http://www.scipy.org/Cookbook/Matplotlib/Show_colormaps
         self.colormap = "Blues"
         self.colormap_scatter = "jet"
-        self.colorbar_tick_rotation = None  # e.g. -90
+        self.colorbar_tick_rotation = None
         self.colorbar_label_pad = 0
-        self.colorbar_label_rotation = -90  # seems to cause problems with some versions, can set to zero
+        self.colorbar_label_rotation = -90
         self.colorbar_axes_fontsize = None
 
-        self.setWithSubplotSize(subplot_size_inch)
+        self.subplot_size_inch = subplot_size_inch
 
         self.param_names_for_labels = None
 
         self.legend_colored_text = False
         self.legend_loc = 'best'
-        self.figure_legend_loc = 'upper center'
+        self.legend_frac_subplot_margin = 0.1
+        self.legend_fontsize = 12
         self.legend_frame = True
+        self.legend_rect_border = False
+
+        self.figure_legend_loc = 'upper center'
         self.figure_legend_frame = True
         self.figure_legend_ncol = 1
-        self.figure_legend_new_ax = False
-
-        self.legend_rect_border = False
-        self.legend_position_config = 1  # recipe for positioning figure border (default 1, for non-GUI)
-
-        self.legend_frac_subplot_margin = 0.1
-        self.legend_frac_subplot_line = 0.1
-        self.legend_fontsize = 12
 
         self.linewidth = 1
         self.linewidth_contour = 0.6
@@ -171,10 +177,12 @@ class GetDistPlotSettings(object):
 
         self.num_plot_contours = 2
         self.solid_contour_palefactor = 0.6
+        self.solid_colors = ['#006FED', '#E03424', 'gray', '#009966', '#000866', '#336600', '#006633', 'm', 'r']
         self.alpha_filled_add = 0.85
         self.alpha_factor_contour_lines = 0.5
+        self.shade_meanlikes = False
 
-        self.axes_fontsize = 11
+        self.axes_fontsize = 12
         self.axes_labelsize = 14
 
         self.axis_marker_color = 'gray'
@@ -183,7 +191,7 @@ class GetDistPlotSettings(object):
 
         self.axis_tick_powerlimits = (-4, 5)
         self.axis_tick_max_labels = 7
-        self.axis_tick_step_groups = [[1, 2, 5, 10], [2.5], [3, 4, 6, 8], [1.5, 7, 9]]
+        self.axis_tick_step_groups = [[1, 2, 5, 10], [2.5, 3, 4, 6, 8], [1.5, 7, 9]]
         self.axis_tick_x_rotation = 0
         self.axis_tick_y_rotation = 0
 
@@ -194,6 +202,14 @@ class GetDistPlotSettings(object):
         self.title_limit = 0
         self.title_limit_labels = True
         self.title_limit_fontsize = None
+
+    @property  # backwards compatibility
+    def lineM(self):
+        return self.line_styles
+
+    @lineM.setter  # backwards compatibility
+    def lineM(self, value):
+        self.line_styles = value
 
     def _numerical_fontsize(self, size):
         size = size or self.fontsize or 11
@@ -217,7 +233,7 @@ class GetDistPlotSettings(object):
             return linewidth
         return max(0.6, linewidth * ax_size / self.scaling_reference_size)
 
-    def setWithSubplotSize(self, size_inch=3.5, size_mm=None):
+    def set_with_subplot_size(self, size_inch=3.5, size_mm=None):
         """
         Sets the subplot's size, either in inches or in millimeters.
         If both are set, uses millimeters.
@@ -229,7 +245,7 @@ class GetDistPlotSettings(object):
             size_inch = size_mm * 0.0393700787
         self.subplot_size_inch = size_inch
 
-    def rcSizes(self, axes_fontsize=None, lab_fontsize=None, legend_fontsize=None):
+    def rc_sizes(self, axes_fontsize=None, lab_fontsize=None, legend_fontsize=None):
         """
         Sets the font sizes by default from matplotlib.rcParams defaults
 
@@ -243,10 +259,10 @@ class GetDistPlotSettings(object):
         self.axes_fontsize = axes_fontsize or self._numerical_fontsize(rcParams['xtick.labelsize'])
 
 
-defaultSettings = GetDistPlotSettings()
+default_settings = GetDistPlotSettings()
 
 
-def getPlotter(**kwargs):
+def get_plotter(**kwargs):
     """
     Creates a new plotter and returns it
 
@@ -256,7 +272,7 @@ def getPlotter(**kwargs):
     return GetDistPlotter(**kwargs)
 
 
-def getSinglePlotter(ratio=3 / 4., width_inch=6, **kwargs):
+def get_single_plotter(ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False, **kwargs):
     """
     Get a :class:`~.plots.GetDistPlotter` for making a single plot of fixed width.
 
@@ -268,17 +284,23 @@ def getSinglePlotter(ratio=3 / 4., width_inch=6, **kwargs):
 
     :param ratio: The ratio between height and width.
     :param width_inch:  The width of the plot in inches
+    :param scaling: whether to scale down fonts and line widths for small sizes (relative to reference sizes, 3.5 inch)
+    :param rc_sizes: set default font sizes from matplotlib's current rcParams if no explicit settings passwed in kwargs
     :param kwargs: arguments for :class:`GetDistPlotter`
     :return: The :class:`~.plots.GetDistPlotter` instance
     """
-    plotter = getPlotter(**kwargs)
-    plotter.settings.setWithSubplotSize(width_inch)
+    plotter = get_plotter(**kwargs)
+    plotter.settings.set_with_subplot_size(width_inch)
+    if scaling is not None:
+        plotter.settings.scaling = scaling
     plotter.settings.fig_width_inch = width_inch
+    if not kwargs.get('settings') and rc_sizes:
+        plotter.settings.rc_sizes()
     plotter.make_figure(1, xstretch=1. / ratio)
     return plotter
 
 
-def getSubplotPlotter(subplot_size=2, width_inch=None, rc_sizes=False, **kwargs):
+def get_subplot_plotter(subplot_size=2, width_inch=None, scaling=True, rc_sizes=False, **kwargs):
     """
     Get a :class:`~.plots.GetDistPlotter` for making an array of subplots.
 
@@ -291,23 +313,33 @@ def getSubplotPlotter(subplot_size=2, width_inch=None, rc_sizes=False, **kwargs)
 
     :param subplot_size: The size of each subplot in inches
     :param width_inch: Optional total width in inches
-    :param rc_sizes: set default font sizes from rcParams
+    :param scaling: whether to scale down fonts and line widths for small sizes (relative to reference sizes, 3.5 inch)
+    :param rc_sizes: set default font sizes from matplotlib's current rcParams if no explicit settings passwed in kwargs
     :param kwargs: arguments for :class:`GetDistPlotter`
     :return: The :class:`GetDistPlotter` instance
     """
-    plotter = getPlotter(**kwargs)
-    plotter.settings.setWithSubplotSize(subplot_size)
+    plotter = get_plotter(**kwargs)
+    plotter.settings.set_with_subplot_size(subplot_size)
+    if scaling is not None:
+        plotter.settings.scaling = scaling
     if width_inch:
         plotter.settings.fig_width_inch = width_inch
         if not kwargs.get('settings') and rc_sizes:
-            plotter.settings.rcSizes()
+            plotter.settings.rc_sizes()
     return plotter
+
+
+# Aliases for backwards compatibility
+getPlotter = get_plotter
+getSubplotPlotter = get_subplot_plotter
+getSinglePlotter = get_single_plotter
 
 
 class RootInfo(object):
     """
     Class to hold information about a set of samples loaded from file
     """
+    __slots__ = ['root', 'batch', 'path']
 
     def __init__(self, root, path, batch=None):
         """
@@ -320,11 +352,12 @@ class RootInfo(object):
         self.path = path
 
 
-class MCSampleAnalysis(object):
+class MCSampleAnalysis(_BaseObject):
     """
     A class that loads and analyses samples, mapping root names to :class:`~.mcsamples.MCSamples` objects with caching.
-    Typically accessed as the instance stored in plotter.sampleAnalyser, for example to
-    get an :class:`~.mcsamples.MCSamples` instance from a root name being used by a plotter, use plotter.sampleAnalyser.samplesForRoot(name).
+    Typically accessed as the instance stored in plotter.sample_analyser, for example to
+    get an :class:`~.mcsamples.MCSamples` instance from a root name being used by a plotter,
+    use plotter.sample_analyser.samples_for_root(name).
     """
 
     def __init__(self, chain_locations, settings=None):
@@ -342,20 +375,21 @@ class MCSampleAnalysis(object):
             if isinstance(chain_locations, six.string_types):
                 chain_locations = [chain_locations]
             for chain_dir in chain_locations:
-                self.addChainDir(chain_dir)
+                self.add_chain_dir(chain_dir)
         self.reset(settings)
 
-    def addChainDir(self, chain_dir):
+    def add_chain_dir(self, chain_dir):
         """
         Adds a new chain directory or grid path for searching for samples
 
         :param chain_dir: The directory to add
         """
-        if chain_dir in self.chain_locations: return
+        if chain_dir in self.chain_locations:
+            return
         self.chain_locations.append(chain_dir)
-        isBatch = isinstance(chain_dir, batchjob.batchJob)
-        if isBatch or gridconfig.pathIsGrid(chain_dir):
-            if isBatch:
+        is_batch = isinstance(chain_dir, batchjob.batchJob)
+        if is_batch or gridconfig.pathIsGrid(chain_dir):
+            if is_batch:
                 batch = chain_dir
             else:
                 batch = batchjob.readobject(chain_dir)
@@ -399,7 +433,7 @@ class MCSampleAnalysis(object):
         self.single_samples = dict()
         self.chain_settings_have_priority = chain_settings_have_priority
 
-    def samplesForRoot(self, root, file_root=None, cache=True, settings=None):
+    def samples_for_root(self, root, file_root=None, cache=True, settings=None):
         """
         Gets :class:`~.mcsamples.MCSamples` from root name
         (or just return root if it is already an MCSamples instance).
@@ -410,15 +444,21 @@ class MCSampleAnalysis(object):
         :param settings: optional dictionary of settings to use
         :return: :class:`~.mcsamples.MCSamples` for the given root name
         """
-        if isinstance(root, MCSamples): return root
+        if isinstance(root, MCSamples):
+            return root
+        if isinstance(root, MixtureND):
+            raise GetDistPlotError('MixtureND is a distribution not a set of samples')
+        elif not isinstance(root, six.string_types):
+            raise GetDistPlotError('Root names must be strings (or MCSamples instances)')
         if os.path.isabs(root):
             # deal with just-folder prefix
             if root.endswith((os.sep, "/")):
                 root = os.path.basename(root[:-1]) + os.sep
             else:
                 root = os.path.basename(root)
-        if root in self.mcsamples and cache: return self.mcsamples[root]
-        jobItem = None
+        if root in self.mcsamples and cache:
+            return self.mcsamples[root]
+        job_item = None
         if self.chain_settings_have_priority:
             dist_settings = settings or {}
         else:
@@ -427,12 +467,12 @@ class MCSampleAnalysis(object):
             from getdist.cobaya_interface import _separator_files
             for chain_dir in self.chain_dirs:
                 if hasattr(chain_dir, "resolveRoot"):
-                    jobItem = chain_dir.resolveRoot(root)
-                    if jobItem:
-                        file_root = jobItem.chainRoot
+                    job_item = chain_dir.resolveRoot(root)
+                    if job_item:
+                        file_root = job_item.chainRoot
                         if hasattr(chain_dir, 'getdist_options'):
                             dist_settings.update(chain_dir.getdist_options)
-                        dist_settings.update(jobItem.dist_settings)
+                        dist_settings.update(job_item.dist_settings)
                         break
                 else:
                     name = os.path.join(chain_dir, root)
@@ -444,20 +484,21 @@ class MCSampleAnalysis(object):
             raise GetDistPlotError('chain not found: ' + root)
         if not self.chain_settings_have_priority:
             dist_settings.update(self.ini.params)
-            if settings: dist_settings.update(settings)
-        self.mcsamples[root] = loadMCSamples(file_root, self.ini, jobItem, settings=dist_settings)
+            if settings:
+                dist_settings.update(settings)
+        self.mcsamples[root] = loadMCSamples(file_root, self.ini, job_item, settings=dist_settings)
         return self.mcsamples[root]
 
-    def addRoots(self, roots):
+    def add_roots(self, roots):
         """
-        A wrapper for addRoot that adds multiple file roots
+        A wrapper for add_root that adds multiple file roots
 
         :param roots: An iterable containing filenames or :class:`RootInfo` objects to add
         """
         for root in roots:
-            self.addRoot(root)
+            self.add_root(root)
 
-    def addRoot(self, file_root):
+    def add_root(self, file_root):
         """
         Add a root file for some new samples
 
@@ -466,13 +507,13 @@ class MCSampleAnalysis(object):
         """
         if isinstance(file_root, RootInfo):
             if file_root.batch:
-                return self.samplesForRoot(file_root.root)
+                return self.samples_for_root(file_root.root)
             else:
-                return self.samplesForRoot(file_root.root, os.path.join(file_root.path, file_root.root))
+                return self.samples_for_root(file_root.root, os.path.join(file_root.path, file_root.root))
         else:
-            return self.samplesForRoot(os.path.basename(file_root), file_root)
+            return self.samples_for_root(os.path.basename(file_root), file_root)
 
-    def removeRoot(self, file_root):
+    def remove_root(self, file_root):
         """
         Remove a given root file (does not delete it)
 
@@ -483,9 +524,6 @@ class MCSampleAnalysis(object):
         self.single_samples.pop(root, None)
         self.densities_1D.pop(root, None)
         self.densities_2D.pop(root, None)
-
-    def newPlot(self):
-        pass
 
     def get_density(self, root, param, likes=False):
         """
@@ -504,13 +542,14 @@ class MCSampleAnalysis(object):
             name = param.name
         else:  #
             name = param
-        samples = self.samplesForRoot(root)
+        samples = self.samples_for_root(root)
         key = (name, likes)
         rootdata.pop((name, not likes), None)
         density = rootdata.get(key)
         if density is None:
             density = samples.get1DDensityGridData(name, meanlikes=likes)
-            if density is None: return None
+            if density is None:
+                return None
             rootdata[key] = density
         return density
 
@@ -532,9 +571,10 @@ class MCSampleAnalysis(object):
         key = (param1.name, param2.name, likes, conts)
         density = rootdata.get(key)
         if not density:
-            samples = self.samplesForRoot(root)
+            samples = self.samples_for_root(root)
             density = samples.get2DDensityGridData(param1.name, param2.name, num_plot_contours=conts, meanlikes=likes)
-            if density is None: return None
+            if density is None:
+                return None
             rootdata[key] = density
         return density
 
@@ -546,27 +586,28 @@ class MCSampleAnalysis(object):
         :return: array of unit weight samples
         """
         if root not in self.single_samples:
-            self.single_samples[root] = self.samplesForRoot(root).makeSingleSamples()
+            self.single_samples[root] = self.samples_for_root(root).makeSingleSamples()
         return self.single_samples[root]
 
-    def paramsForRoot(self, root, labelParams=None):
+    def params_for_root(self, root, label_params=None):
         """
-        Returns a :class:`~.paramnames.ParamNames` with names and labels for parameters used by samples with a given root name.
+        Returns a :class:`~.paramnames.ParamNames` with names and labels for parameters used by samples with a
+        given root name.
 
         :param root: The root name of the samples to use.
-        :param labelParams: optional name of .paramnames file containing labels to use for plots, overriding default
+        :param label_params: optional name of .paramnames file containing labels to use for plots, overriding default
         :return: :class:`~.paramnames.ParamNames` instance
         """
         if hasattr(root, 'paramNames'):
             names = root.paramNames
         else:
-            samples = self.samplesForRoot(root)
+            samples = self.samples_for_root(root)
             names = samples.getParamNames()
-        if labelParams is not None:
-            names.setLabelsAndDerivedFromParamNames(os.path.join(batchjob.getCodeRootPath(), labelParams))
+        if label_params is not None:
+            names.setLabelsAndDerivedFromParamNames(os.path.join(batchjob.getCodeRootPath(), label_params))
         return names
 
-    def boundsForRoot(self, root):
+    def bounds_for_root(self, root):
         """
         Returns an object with getUpper and getLower to get hard prior bounds for given root name
 
@@ -576,44 +617,57 @@ class MCSampleAnalysis(object):
         if hasattr(root, 'getUpper'):
             return root
         else:
-            return self.samplesForRoot(root)  # defines getUpper and getLower, all that's needed
+            return self.samples_for_root(root)  # defines getUpper and getLower, all that's needed
 
 
-class GetDistPlotter(object):
+class GetDistPlotter(_BaseObject):
     """
     Main class for making plots from one or more sets of samples.
 
     :ivar settings: a :class:`GetDistPlotSettings` instance with settings
     :ivar subplots: a 2D array of :class:`~matplotlib:matplotlib.axes.Axes` for subplots
-    :ivar sampleAnalyser: a :class:`MCSampleAnalysis` instance for getting :class:`~.mcsamples.MCSamples`
-         and derived data from a given root name tag (e.g. sampleAnalyser.samplesForRoot('rootname'))
+    :ivar sample_analyser: a :class:`MCSampleAnalysis` instance for getting :class:`~.mcsamples.MCSamples`
+         and derived data from a given root name tag (e.g. sample_analyser.samples_for_root('rootname'))
     """
 
-    def __init__(self, chain_dir=None, settings=None, analysis_settings=None):
+    def __init__(self, chain_dir=None, settings=None, analysis_settings=None, auto_close=False):
         """
 
-        :param chain_dir: Set this to a directory or grid root to search for chains (can also be a list of such, searched in order)
+        :param chain_dir: Set this to a directory or grid root to search for chains
+                          (can also be a list of such, searched in order)
         :param analysis_settings: The settings to be used by :class:`MCSampleAnalysis` when analysing samples
+        :param auto_close: whether to automatically close the figure whenever a new plot made or this instance released
         """
 
         self.chain_dir = chain_dir
         if settings is None:
-            self.settings = copy.deepcopy(defaultSettings)
+            self.settings = copy.deepcopy(default_settings)
         else:
             self.settings = settings
-        self.sampleAnalyser = MCSampleAnalysis(chain_dir or getdist.default_grid_root, analysis_settings)
-        self.newPlot()
+        self.sample_analyser = MCSampleAnalysis(chain_dir or getdist.default_grid_root, analysis_settings)
+        self.auto_close = auto_close
+        self.fig = None
+        self.new_plot()
 
-    def newPlot(self):
+    def __del__(self):
+        if self.auto_close and self.fig:
+            plt.close(self.fig)
+
+    def new_plot(self, close_existing=None):
         """
         Resets the given plotter to make a new empty plot.
+
+        :param close_existing: True to close any current figure
         """
+        if close_existing is None:
+            close_existing = self.auto_close
         self.extra_artists = []
         self.contours_added = []
         self.lines_added = dict()
         self.param_name_sets = dict()
         self.param_bounds_sets = dict()
-        self.sampleAnalyser.newPlot()
+        if close_existing and self.fig:
+            plt.close(self.fig)
         self.fig = None
         self.subplots = None
         self.plot_col = 0
@@ -672,7 +726,7 @@ class GetDistPlotter(object):
         Get default line style, taken from settings.lineM
 
         :param plotno: The number of the line added to the plot to get the style of.
-        :return: The default line style.
+        :return: Tuple of line style and color for default line style (e.g. ('-', 'r')).
         """
         try:
             res = self._get_color_at_index(self.settings.lineM, plotno)
@@ -752,7 +806,7 @@ class GetDistPlotter(object):
         """
         return self._get_line_styles(plotno, **kwargs)['ls']
 
-    def _get_alpha2D(self, plotno, **kwargs):
+    def _get_alpha_2d(self, plotno, **kwargs):
         """
         Get the alpha for the given 2D contour added to plot
 
@@ -768,7 +822,7 @@ class GetDistPlotter(object):
             default = 1
         return args.get('alpha', default)
 
-    def paramNamesForRoot(self, root):
+    def param_names_for_root(self, root):
         """
         Get the parameter names and labels :class:`~.paramnames.ParamNames` instance for the given root name
 
@@ -777,17 +831,18 @@ class GetDistPlotter(object):
         """
         if root not in self.param_name_sets:
             self.param_name_sets[root] = \
-                self.sampleAnalyser.paramsForRoot(root, labelParams=self.settings.param_names_for_labels)
+                self.sample_analyser.params_for_root(root, label_params=self.settings.param_names_for_labels)
         return self.param_name_sets[root]
 
-    def paramBoundsForRoot(self, root):
+    def param_bounds_for_root(self, root):
         """
         Get any hard prior bounds for the parameters with root file name
 
         :param root: The root name to be used
         :return: object with getUpper() and getLower() bounds functions
         """
-        if root not in self.param_bounds_sets: self.param_bounds_sets[root] = self.sampleAnalyser.boundsForRoot(root)
+        if root not in self.param_bounds_sets:
+            self.param_bounds_sets[root] = self.sample_analyser.bounds_for_root(root)
         return self.param_bounds_sets[root]
 
     def _check_param_ranges(self, root, name, xmin, xmax):
@@ -800,7 +855,7 @@ class GetDistPlotter(object):
         :param xmax: The upper bound
         :return: The bounds (highest lower limit, and lowest upper limit)
         """
-        d = self.paramBoundsForRoot(root)
+        d = self.param_bounds_for_root(root)
         low = d.getLower(name)
         if low is not None:
             xmin = max(xmin, low)
@@ -812,7 +867,7 @@ class GetDistPlotter(object):
     def _get_param_bounds(self, roots, name):
         xmin, xmax = None, None
         for root in roots:
-            d = self.paramBoundsForRoot(root)
+            d = self.param_bounds_for_root(root)
             low = d.getLower(name)
             if low is not None:
                 if xmin is None:
@@ -850,7 +905,7 @@ class GetDistPlotter(object):
             if not normalized:
                 density.normalize(by='max')
         else:
-            density = self.sampleAnalyser.get_density(root, param, likes=self.settings.plot_meanlikes)
+            density = self.sample_analyser.get_density(root, param, likes=self.settings.plot_meanlikes)
             if density is None:
                 return None
 
@@ -869,7 +924,7 @@ class GetDistPlotter(object):
         if title_limit:
             if isinstance(root, MixtureND):
                 raise ValueError('limit_title not currently supported for MixtureND')
-            samples = self.sampleAnalyser.samplesForRoot(root)
+            samples = self.sample_analyser.samples_for_root(root)
             if self.settings.title_limit_labels:
                 caption = samples.getInlineLatex(param, limit=title_limit)
             else:
@@ -906,16 +961,18 @@ class GetDistPlotter(object):
         """
         Low-level function to add 2D contours to plot for samples with given root name and parameters
 
-        :param root: The root name of samples to use
+        :param root: The root name of samples to use or a MixtureND gaussian mixture
         :param param1: x parameter
         :param param2: y parameter
         :param plotno: The index of the contour lines being added
         :param of: the total number of contours being added (this is line plotno of of)
         :param cols: optional list of colors to use for contours, by default uses default for this plotno
-        :param contour_levels: levels at which to plot the contours, by default given by contours array in the analysis settings
+        :param contour_levels: levels at which to plot the contours, by default given by contours array in
+                               the analysis settings
         :param add_legend_proxy: True if should add a proxy to the legend of this plot.
         :param param_pair: an [x,y] parameter name pair if you prefer to provide this rather than param1 and param2
-        :param density: optional :class:`~.densities.Density2D` to plot rather than that computed automatically from the samples
+        :param density: optional :class:`~.densities.Density2D` to plot rather than that computed automatically
+                        from the samples
         :param alpha: alpha for the contours added
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
         :param kwargs: optional keyword arguments:
@@ -925,34 +982,38 @@ class GetDistPlotter(object):
                - kwargs for :func:`~matplotlib:matplotlib.pyplot.contour` and :func:`~matplotlib:matplotlib.pyplot.contourf`
         :return: bounds (from :meth:`~.densities.GridDensity.bounds`) for the 2D density plotted
         """
+
         ax = ax or self._subplot_number(0)
         if density is None:
             param1, param2 = self.get_param_array(root, param_pair or [param1, param2])
             ax.getdist_params = (param1, param2)
-            density = self.sampleAnalyser.get_density_grid(root, param1, param2,
-                                                           conts=self.settings.num_plot_contours,
-                                                           likes=self.settings.shade_meanlikes)
+            if isinstance(root, MixtureND):
+                density = root.marginalizedMixture(params=[param1, param2]).density2D()
+            else:
+                density = self.sample_analyser.get_density_grid(root, param1, param2,
+                                                                conts=self.settings.num_plot_contours,
+                                                                likes=self.settings.shade_meanlikes)
             if density is None:
                 if add_legend_proxy:
                     self.contours_added.append(None)
                 return None
         if alpha is None:
-            alpha = self._get_alpha2D(plotno, **kwargs)
+            alpha = self._get_alpha_2d(plotno, **kwargs)
         if contour_levels is None:
             if not hasattr(density, 'contours'):
-                contours = self.sampleAnalyser.ini.ndarray('contours')
+                contours = self.sample_analyser.ini.ndarray('contours')
                 if contours is not None:
                     contours = contours[:self.settings.num_plot_contours]
                 density.contours = density.getContourLevels(contours)
             contour_levels = density.contours
 
         if add_legend_proxy:
-            proxyIx = len(self.contours_added)
+            proxy_ix = len(self.contours_added)
             self.contours_added.append(None)
         elif None in self.contours_added and self.contours_added.index(None) == plotno:
-            proxyIx = plotno
+            proxy_ix = plotno
         else:
-            proxyIx = -1
+            proxy_ix = -1
 
         def clean_args(_args):  # prevent unused argument warnings
             _args = dict(_args)
@@ -972,11 +1033,11 @@ class GetDistPlotter(object):
                 else:
                     cols = color
             levels = sorted(np.append([density.P.max() + 1], contour_levels))
-            CS = ax.contourf(density.x, density.y, density.P, levels, colors=cols, alpha=alpha, **clean_args(kwargs))
-            if proxyIx >= 0:
-                self.contours_added[proxyIx] = (
-                    plt.Rectangle((0, 0), 1, 1, fc=matplotlib.colors.to_rgb(CS.tcolors[-1][0])))
-            ax.contour(density.x, density.y, density.P, levels[:1], colors=CS.tcolors[-1],
+            cs = ax.contourf(density.x, density.y, density.P, levels, colors=cols, alpha=alpha, **clean_args(kwargs))
+            if proxy_ix >= 0:
+                self.contours_added[proxy_ix] = (
+                    plt.Rectangle((0, 0), 1, 1, fc=matplotlib.colors.to_rgb(cs.tcolors[-1][0])))
+            ax.contour(density.x, density.y, density.P, levels[:1], colors=cs.tcolors[-1],
                        linewidths=self._scaled_linewidth(self.settings.linewidth_contour),
                        alpha=alpha * self.settings.alpha_factor_contour_lines, **clean_args(kwargs))
         else:
@@ -986,18 +1047,18 @@ class GetDistPlotter(object):
             lws = args['lw']  # not linewidth_contour is only used for filled contours
             kwargs = self._get_plot_args(plotno, **kwargs)
             kwargs['alpha'] = alpha
-            CS = ax.contour(density.x, density.y, density.P, sorted(contour_levels), colors=cols, linestyles=linestyles,
+            cs = ax.contour(density.x, density.y, density.P, sorted(contour_levels), colors=cols, linestyles=linestyles,
                             linewidths=lws, **clean_args(kwargs))
             dashes = args.get('dashes')
             if dashes:
-                for c in CS.collections:
+                for c in cs.collections:
                     c.set_dashes([(0, dashes)])
-            if proxyIx >= 0:
+            if proxy_ix >= 0:
                 line = plt.Line2D([0, 1], [0, 1], ls=linestyles[0], lw=lws, color=cols[0],
                                   alpha=args.get('alpha'))
                 if dashes:
                     line.set_dashes(dashes)
-                self.contours_added[proxyIx] = line
+                self.contours_added[proxy_ix] = line
 
         return density.bounds()
 
@@ -1016,13 +1077,15 @@ class GetDistPlotter(object):
         """
         param1, param2 = self.get_param_array(root, [param1, param2])
         ax = ax or self._subplot_number(0, pars=(param1, param2))
-        density = density or self.sampleAnalyser.get_density_grid(root, param1, param2,
-                                                                  conts=self.settings.num_plot_contours,
-                                                                  likes=self.settings.shade_meanlikes)
-        if density is None: return
-        if colormap is None: colormap = self.settings.colormap
-        scalarMap = cm.ScalarMappable(cmap=colormap)
-        cols = scalarMap.to_rgba(np.linspace(0, 1, self.settings.num_shades))
+        density = density or self.sample_analyser.get_density_grid(root, param1, param2,
+                                                                   conts=self.settings.num_plot_contours,
+                                                                   likes=self.settings.shade_meanlikes)
+        if density is None:
+            return
+        if colormap is None:
+            colormap = self.settings.colormap
+        scalar_map = cm.ScalarMappable(cmap=colormap)
+        cols = scalar_map.to_rgba(np.linspace(0, 1, self.settings.num_shades))
         # make sure outside area white and nice fade
         n = min(self.settings.num_shades // 3, 20)
         white = np.array([1, 1, 1, 1])
@@ -1040,7 +1103,7 @@ class GetDistPlotter(object):
         # doing contourf gets rid of annoying white lines in pdfs
         ax.contour(density.x, density.y, points, self.settings.num_shades, colors=cols, levels=levels, **kwargs)
 
-    def add_2D_covariance(self, means, cov, xvals=None, yvals=None, def_width=4.0, samples_per_std=50., **kwargs):
+    def add_2d_covariance(self, means, cov, xvals=None, yvals=None, def_width=4.0, samples_per_std=50., **kwargs):
         """
         Plot 2D Gaussian ellipse. By default plots contours for 1 and 2 sigma.
         Specify contour_levels argument to plot other contours (for density normalized to peak at unity).
@@ -1069,11 +1132,11 @@ class GetDistPlotter(object):
         density.contours = [0.32, 0.05]
         return self.add_2d_density_contours(density, **kwargs)
 
-    def add_2D_mixture_projection(self, mixture, param1, param2, **kwargs):
+    def add_2d_mixture_projection(self, mixture, param1, param2, **kwargs):
         density = mixture.marginalizedMixture(params=[param1, param2]).density2D()
         return self.add_2d_density_contours(density, **kwargs)
 
-    def _updateLimit(self, bounds, curbounds):
+    def _update_limit(self, bounds, curbounds):
         """
         Calculates the merge of two upper and lower limits, so result encloses both ranges
 
@@ -1081,26 +1144,30 @@ class GetDistPlotter(object):
         :param curbounds:  bounds to add
         :return: The new limits
         """
-        if not bounds: return curbounds
-        if curbounds is None or curbounds[0] is None: return bounds
+        if not bounds:
+            return curbounds
+        if curbounds is None or curbounds[0] is None:
+            return bounds
         return min(curbounds[0], bounds[0]), max(curbounds[1], bounds[1])
 
-    def _updateLimits(self, res, xlims, ylims, doResize=True):
+    def _update_limits(self, res, xlims, ylims, do_resize=True):
         """
         update 2D limits with new x and y limits (expanded unless doResize is False)
 
         :param res: The current limits
         :param xlims: The new lims for x
         :param ylims: The new lims for y.
-        :param doResize: True if should resize, False otherwise.
+        :param do_resize: True if should resize, False otherwise.
         :return: The newly calculated limits.
         """
-        if res is None: return xlims, ylims
-        if xlims is None and ylims is None: return res
-        if not doResize:
+        if res is None:
+            return xlims, ylims
+        if xlims is None and ylims is None:
+            return res
+        if not do_resize:
             return xlims, ylims
         else:
-            return self._updateLimit(res[0], xlims), self._updateLimit(res[1], ylims)
+            return self._update_limit(res[0], xlims), self._update_limit(res[1], ylims)
 
     def _make_line_args(self, nroots, **kwargs):
         line_args = kwargs.get('line_args')
@@ -1154,7 +1221,8 @@ class GetDistPlotter(object):
         """
         Create a single 2D line, contour or filled plot.
 
-        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for the samples to plot
+        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for
+                      the samples to plot
         :param param1: x parameter name
         :param param2:  y parameter name
         :param param_pair: An [x,y] pair of params; can be set instead of param1 and param2
@@ -1162,7 +1230,7 @@ class GetDistPlotter(object):
         :param add_legend_proxy: True if should add to the legend proxy
         :param line_offset: line_offset if not adding first contours to plot
         :param proxy_root_exclude: any root names not to include when adding to the legend proxy
-        :param ax: axes to use (will be automatically made if None)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (created if None)
         :param kwargs: additional optional arguments:
 
                 * **filled**: True for filled contours
@@ -1172,7 +1240,7 @@ class GetDistPlotter(object):
                 * **lws**: list of line widths for the different sample contours plotted
                 * **alphas**: list of alphas for the different sample contours plotted
                 * **line_args**: a list of dictionaries with settings for each set of contours
-                * arguments for :func:`~GetDistPlotter.setAxes`
+                * arguments for :func:`~GetDistPlotter.set_axes`
         :return: The xbounds, ybounds of the plot.
 
         .. plot::
@@ -1199,16 +1267,10 @@ class GetDistPlotter(object):
         xbounds, ybounds = None, None
         contour_args = self._make_contour_args(len(roots), **kwargs)
         for i, root in enumerate(roots):
-            if isinstance(root, MixtureND):
-                res = self.add_2D_mixture_projection(root, param_pair[0], param_pair[1],
-                                                     plotno=line_offset + i, of=len(roots), ax=ax,
-                                                     add_legend_proxy=add_legend_proxy and root not in proxy_root_exclude,
-                                                     **contour_args[i])
-            else:
-                res = self.add_2d_contours(root, param_pair[0], param_pair[1], line_offset + i, of=len(roots), ax=ax,
-                                           add_legend_proxy=add_legend_proxy and root not in proxy_root_exclude,
-                                           **contour_args[i])
-            xbounds, ybounds = self._updateLimits(res, xbounds, ybounds)
+            res = self.add_2d_contours(root, param_pair[0], param_pair[1], line_offset + i, of=len(roots), ax=ax,
+                                       add_legend_proxy=add_legend_proxy and root not in proxy_root_exclude,
+                                       **contour_args[i])
+            xbounds, ybounds = self._update_limits(res, xbounds, ybounds)
         if xbounds is None:
             return
         if 'lims' not in kwargs:
@@ -1216,7 +1278,7 @@ class GetDistPlotter(object):
             lim2 = self._check_param_ranges(roots[0], param_pair[1].name, ybounds[0], ybounds[1])
             kwargs['lims'] = [lim1[0], lim1[1], lim2[0], lim2[1]]
 
-        self.setAxes(param_pair, ax=ax, **kwargs)
+        self.set_axes(param_pair, ax=ax, **kwargs)
         return xbounds, ybounds
 
     def add_x_marker(self, marker, color=None, ls=None, lw=None, ax=None, **kwargs):
@@ -1230,9 +1292,12 @@ class GetDistPlotter(object):
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
         :param kwargs: additional arguments to pass to :func:`~matplotlib:matplotlib.pyplot.axvline`
         """
-        if color is None: color = self.settings.axis_marker_color
-        if ls is None: ls = self.settings.axis_marker_ls
-        if lw is None: lw = self.settings.axis_marker_lw
+        if color is None:
+            color = self.settings.axis_marker_color
+        if ls is None:
+            ls = self.settings.axis_marker_ls
+        if lw is None:
+            lw = self.settings.axis_marker_lw
         (ax or plt.gca()).axvline(marker, ls=ls, color=color, lw=lw, **kwargs)
 
     def add_y_marker(self, marker, color=None, ls=None, lw=None, ax=None, **kwargs):
@@ -1246,9 +1311,12 @@ class GetDistPlotter(object):
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
         :param kwargs: additional arguments to pass to :func:`~matplotlib:matplotlib.pyplot.axhline`
         """
-        if color is None: color = self.settings.axis_marker_color
-        if ls is None: ls = self.settings.axis_marker_ls
-        if lw is None: lw = self.settings.axis_marker_lw
+        if color is None:
+            color = self.settings.axis_marker_color
+        if ls is None:
+            ls = self.settings.axis_marker_ls
+        if lw is None:
+            lw = self.settings.axis_marker_lw
         (ax or plt.gca()).axhline(marker, ls=ls, color=color, lw=lw, **kwargs)
 
     def add_x_bands(self, x, sigma, color='gray', ax=None, alpha1=0.15, alpha2=0.1, **kwargs):
@@ -1258,8 +1326,9 @@ class GetDistPlotter(object):
         :param x: central x value for bands
         :param sigma: 1 sigma error on x
         :param color: The base color to use
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add the bands to (defaults to current plot)
-        :param alpha1: alpha for the 1 sigma band; note this is drawn on top of the 2 sigma band. Set to zero if you only want 2 sigma band
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
+        :param alpha1: alpha for the 1 sigma band; note this is drawn on top of the 2 sigma band. Set to zero if you
+                       only want 2 sigma band
         :param alpha2: alpha for the 2 sigma band. Set to zero if you only want 1 sigma band
         :param kwargs: optional keyword arguments for :func:`~matplotlib:matplotlib.pyplot.axvspan`
 
@@ -1286,8 +1355,9 @@ class GetDistPlotter(object):
         :param y: central y value for bands
         :param sigma: 1 sigma error on y
         :param color: The base color to use
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add the bands to (defaults to current plot)
-        :param alpha1: alpha for the 1 sigma band; note this is drawn on top of the 2 sigma band. Set to zero if you only want 2 sigma band
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
+        :param alpha1: alpha for the 1 sigma band; note this is drawn on top of the 2 sigma band. Set to zero if
+                       you only want 2 sigma band
         :param alpha2: alpha for the 2 sigma band. Set to zero if you only want 1 sigma band
         :param kwargs: optional keyword arguments for :func:`~matplotlib:matplotlib.pyplot.axhspan`
 
@@ -1307,7 +1377,7 @@ class GetDistPlotter(object):
         if alpha1 > 0:
             ax.axhspan((y - sigma), (y + sigma), color=c, alpha=alpha1, **kwargs)
 
-    def _SetAxisFormatter(self, axis, x):
+    def _set_axis_formatter(self, axis, x):
         power_limits = self.settings.axis_tick_powerlimits
         if not x:
             # Avoid offset text on y axis where won't work on subplots
@@ -1317,9 +1387,9 @@ class GetDistPlotter(object):
                 axis.set_major_formatter(SciFuncFormatter())
                 return
 
-        sFormatter = ScalarFormatter(useOffset=False, useMathText=True)
-        sFormatter.set_powerlimits(power_limits)
-        axis.set_major_formatter(sFormatter)
+        formatter = ScalarFormatter(useOffset=False, useMathText=True)
+        formatter.set_powerlimits(power_limits)
+        axis.set_major_formatter(formatter)
 
     def _set_axis_properties(self, axis, rotation=0, labelsize=None):
         self._auto_ticks(axis)
@@ -1338,19 +1408,21 @@ class GetDistPlotter(object):
         :param axis: The axis to set properties to.
         :param x: True if x axis, False for y axis
         """
-        self._SetAxisFormatter(axis, x)
+        self._set_axis_formatter(axis, x)
         self._set_axis_properties(axis, self.settings.axis_tick_x_rotation if x else self.settings.axis_tick_y_rotation)
 
-    def _no_x_ticklabels(self, ax):
+    @staticmethod
+    def _no_x_ticklabels(ax):
         ax.tick_params(labelbottom=False)
         ax.xaxis.offsetText.set_visible(False)
 
-    def _no_y_ticklabels(self, ax):
+    @staticmethod
+    def _no_y_ticklabels(ax):
         ax.tick_params(labelleft=False)
         ax.yaxis.offsetText.set_visible(False)
 
-    def setAxes(self, params=[], lims=None, do_xlabel=True, do_ylabel=True, no_label_no_numbers=False, pos=None,
-                color_label_in_axes=False, ax=None, **other_args):
+    def set_axes(self, params=[], lims=None, do_xlabel=True, do_ylabel=True, no_label_no_numbers=False, pos=None,
+                 color_label_in_axes=False, ax=None, **other_args):
         """
         Set the axis labels and ticks, and various styles. Do not usually need to call this directly.
 
@@ -1360,9 +1432,10 @@ class GetDistPlotter(object):
         :param do_ylabel: True if should include label for y axis.
         :param no_label_no_numbers: True to hide tick labels
         :param pos: optional position of the axes ['left' | 'bottom' | 'width' | 'height']
-        :param color_label_in_axes: If True, and params has at last three entries, puts text in the axis to label the third parameter
+        :param color_label_in_axes: If True, and params has at last three entries, puts text in the axis to label
+                                    the third parameter
         :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
-        :param other_args: Not used, just quietly ignore so that setAxes can be passed general kwargs
+        :param other_args: Not used, just quietly ignore so that set_axes can be passed general kwargs
         :return: an :class:`~matplotlib:matplotlib.axes.Axes` instance
         """
         ax = ax or plt.gca()
@@ -1415,7 +1488,8 @@ class GetDistPlotter(object):
         """
         Make a single 1D plot with marginalized density lines.
 
-        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for the samples to plot
+        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for
+                      the samples to plot
         :param param: the parameter name to plot
         :param marker: If set, places a marker at given coordinate.
         :param marker_color: If set, sets the marker color.
@@ -1435,7 +1509,7 @@ class GetDistPlotter(object):
                 * **lws**: list of line widths for the different lines plotted
                 * **alphas**: list of alphas for the different lines plotted
                 * **line_args**: a list of dictionaries with settings for each set of lines
-                * arguments for :func:`~GetDistPlotter.setAxes`
+                * arguments for :func:`~GetDistPlotter.set_axes`
 
         .. plot::
            :include-source:
@@ -1469,7 +1543,7 @@ class GetDistPlotter(object):
                 continue
             bounds = self.add_1d(root, root_param, i, normalized=normalized, title_limit=title_limit if not i else 0,
                                  ax=ax, **line_args[i])
-            xmin, xmax = self._updateLimit(bounds, (xmin, xmax))
+            xmin, xmax = self._update_limit(bounds, (xmin, xmax))
             if bounds is not None and not plotparam:
                 plotparam = root_param
                 plotroot = root
@@ -1486,7 +1560,7 @@ class GetDistPlotter(object):
         else:
             mx = 1.099
         kwargs['lims'] = [xmin, xmax, 0, mx]
-        self.setAxes([plotparam], ax=ax, **kwargs)
+        self.set_axes([plotparam], ax=ax, **kwargs)
 
         if normalized:
             lab = self.settings.norm_prob_label
@@ -1522,7 +1596,7 @@ class GetDistPlotter(object):
         :param sharey: no horizontal space between subplots
         :return: The plot_col, plot_row numbers of subplots for the figure
         """
-        self.newPlot()
+        self.new_plot()
         if nx is None:
             self.plot_col = int(round(np.sqrt(nplot / 1.4)))
         else:
@@ -1539,26 +1613,11 @@ class GetDistPlotter(object):
             self._ax_width = self.settings.subplot_size_inch * xstretch
             figsize = (self.settings.subplot_size_inch * self.plot_col * xstretch,
                        self.settings.subplot_size_inch * self.plot_row * ystretch)
-        if self.settings.figure_legend_new_ax:
-            figsize[1] *= 1.1
         if self.settings.constrained_layout:
             self.fig = plt.figure(figsize=figsize, constrained_layout=True)
         else:
             self.fig = plt.figure(figsize=figsize)
-        if self.settings.figure_legend_new_ax:
-            ratios = (0.1, 1, 0.001)  # keep empty slots for possible legends outside main subplot figure
-            # set_height_ratios later appears not to work
-            if hasattr(self.fig, 'add_gridspec'):
-                # outer grid can hold figure legends etc, gridspec holds subplots
-                self.outer_gridspec = self.fig.add_gridspec(3, 1, height_ratios=ratios, wspace=0, hspace=0)
-                self.gridspec = self.outer_gridspec[1].subgridspec(self.plot_row, self.plot_col)
-            else:
-                self.outer_gridspec = plt.GridSpec(3, 1, height_ratios=ratios, wspace=0, hspace=0,
-                                                   figure=self.fig)
-                self.gridspec = matplotlib.gridspec.GridSpecFromSubplotSpec(nrows=self.plot_row, ncols=self.plot_col,
-                                                                            subplot_spec=self.outer_gridspec[1])
-        else:
-            self.gridspec = plt.GridSpec(nrows=self.plot_row, ncols=self.plot_col, figure=self.fig)
+        self.gridspec = plt.GridSpec(nrows=self.plot_row, ncols=self.plot_col, figure=self.fig)
 
         if sharey:
             self._share_kwargs = {'w_pad': 0, 'wspace': 0}
@@ -1588,12 +1647,14 @@ class GetDistPlotter(object):
                         used by the samples
         :return: list of :class:`~.paramnames.ParamInfo` instances for the parameters
         """
-        if hasattr(root, 'paramNames'):
+        if hasattr(root, 'param_names'):
+            names = root.param_names
+        elif hasattr(root, 'paramNames'):
             names = root.paramNames
         elif hasattr(root, 'names'):
             names = ParamNames(names=root.names, default=getattr(root, 'dim', 0))
         else:
-            names = self.paramNamesForRoot(root)
+            names = self.param_names_for_root(root)
 
         if params is None or len(params) == 0:
             return names.names
@@ -1601,12 +1662,12 @@ class GetDistPlotter(object):
         if isinstance(params, six.string_types):
             error = True
         else:
-            is_ParamInfo = [isinstance(param, ParamInfo) for param in params]
-            error = [not a for a in is_ParamInfo]
+            is_param_info = [isinstance(param, ParamInfo) for param in params]
+            error = [not a for a in is_param_info]
             # Add renames of given ParamInfo's to the renames dict
-            renames_from_ParamInfo = {param.name: getattr(param, "renames", [])
-                                      for i, param in enumerate(params) if is_ParamInfo[i]}
-            renames = mergeRenames(renames, renames_from_ParamInfo)
+            renames_from_param_info = {param.name: getattr(param, "renames", [])
+                                       for i, param in enumerate(params) if is_param_info[i]}
+            renames = mergeRenames(renames, renames_from_param_info)
             params = [getattr(param, "name", param) for param in params]
         old = [(old if isinstance(old, ParamInfo) else ParamInfo(old)) for old in params]
         return [new or old for new, old in zip(
@@ -1633,23 +1694,23 @@ class GetDistPlotter(object):
         else:
             name = param
         # NB: If a parameter is not found, errors only if param is a ParamInfo instance
-        return self.paramNamesForRoot(root).parWithName(
-            name, error=(name == param), renames=renames)
+        return self.param_names_for_root(root).parWithName(name, error=(name == param), renames=renames)
 
-    def param_latex_label(self, root, name, labelParams=None):
+    def param_latex_label(self, root, name, label_params=None):
         """
         Returns the latex label for given parameter.
 
         :param root: root name of the samples having the parameter (or :class:`~.mcsamples.MCSamples` instance)
         :param name:  The param name
-        :param labelParams: optional name of .paramnames file to override parameter name labels
+        :param label_params: optional name of .paramnames file to override parameter name labels
         :return: The latex label
         """
-        if labelParams is not None:
-            p = self.sampleAnalyser.paramsForRoot(root, labelParams=labelParams).parWithName(name)
+        if label_params is not None:
+            p = self.sample_analyser.params_for_root(root, label_params=label_params).parWithName(name)
         else:
             p = self._check_param(root, name)
-        if not p: raise GetDistPlotError('Parameter not found: ' + name)
+        if not p:
+            raise GetDistPlotError('Parameter not found: ' + name)
         return p.latexLabel()
 
     def add_legend(self, legend_labels, legend_loc=None, line_offset=0, legend_ncol=None, colored_text=None,
@@ -1666,8 +1727,10 @@ class GetDistPlotter(object):
                              - True: legend labels are colored to match the lines/contours
                              - False: colored lines/boxes are drawn before black labels
         :param figure: True if legend is for the figure rather than the selected axes
-        :param ax: if figure == False, the :class:`~matplotlib:matplotlib.axes.Axes` instance to use; defaults to current axes.
-        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving specific order of line indices
+        :param ax: if figure == False, the :class:`~matplotlib:matplotlib.axes.Axes` instance to use; defaults to
+                    current axes.
+        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving
+                            specific order of line indices
         :param align_right: True to align legend text at the right
         :param fontsize: The size of the font, default from settings
         :param figure_legend_outside: whether figure legend is outside or inside the subplots box
@@ -1713,32 +1776,19 @@ class GetDistPlotter(object):
                     raise ValueError('Cannot use centre location for figure legend outside')
                 subloc = ('upper', 'center', 'lower')[['lower', 'center', 'upper'].index(loc1)]
                 new_legend_loc = subloc + ' ' + loc2
-                if self.settings.figure_legend_new_ax:
-                    frac = self._legend_frac_size(len(legend_labels) // legend_ncol)
-                    if loc1 == 'lower':
-                        self.outer_gridspec.set_height_ratios((0.001, 1, frac))  # Doesn't work?
-                        legend_ax = self.fig.add_subplot(self.outer_gridspec[2, 0])
-                    else:
-                        self.outer_gridspec.set_height_ratios((frac, 1, 0.001))
-                        legend_ax = self.fig.add_subplot(self.outer_gridspec[0, 0])
-                    legend_ax.axis('off')
-                    self.legend = legend_ax.legend(lines, legend_labels, loc=new_legend_loc, **args)
+                frac = self.settings.legend_frac_subplot_margin
+                if loc1 == 'upper':
+                    args['bbox_to_anchor'] = (0 if loc2 == 'left' else
+                                              (self.plot_col if loc2 == 'right' else self.plot_col / 2),
+                                              1 + frac)
+                    args['bbox_transform'] = self.subplots[0, 0].transAxes
                 else:
-                    if self.settings.legend_position_config == 1:
-                        # default unless in GUI, which does not show things outside figure
-                        frac = self.settings.legend_frac_subplot_margin
-                        if loc1 == 'upper':
-                            args['bbox_to_anchor'] = (0 if loc2 == 'left' else
-                                                      (self.plot_col if loc2 == 'right' else self.plot_col / 2),
-                                                      1 + frac)
-                            args['bbox_transform'] = self.subplots[0, 0].transAxes
-                        else:
-                            args['bbox_to_anchor'] = (0 if loc2 == 'left' else (1 if loc2 == 'right' else 0.5),
-                                                      -frac / self.plot_row)
-                            args['bbox_transform'] = self.fig.transFigure
-                        args['borderaxespad'] = 0
-                        legend_loc = new_legend_loc
-                    self.legend = self.fig.legend(lines, legend_labels, loc=legend_loc, **args)
+                    args['bbox_to_anchor'] = (0 if loc2 == 'left' else (1 if loc2 == 'right' else 0.5),
+                                              -frac / self.plot_row)
+                    args['bbox_transform'] = self.fig.transFigure
+                args['borderaxespad'] = 0
+                legend_loc = new_legend_loc
+                self.legend = self.fig.legend(lines, legend_labels, loc=legend_loc, **args)
             else:
                 self.legend = self.fig.legend(lines, legend_labels, loc=legend_loc, **args)
 
@@ -1777,6 +1827,12 @@ class GetDistPlotter(object):
         if not self.settings.constrained_layout and self._share_kwargs:
             self.fig.subplots_adjust(wspace=self._share_kwargs.get('wspace'), hspace=self._share_kwargs.get('hspace'))
 
+    def _tight_layout(self, rect=None):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.gridspec.tight_layout(self.fig, h_pad=self._share_kwargs.get('h_pad'),
+                                       w_pad=self._share_kwargs.get('w_pad'), rect=rect)
+
     def finish_plot(self, legend_labels=None, legend_loc=None, line_offset=0, legend_ncol=None, label_order=None,
                     no_extra_legend_space=False, no_tight=False, **legend_args):
         """
@@ -1786,7 +1842,8 @@ class GetDistPlotter(object):
         :param legend_loc: The legend location, default from settings
         :param line_offset: The offset of plotted lines to label (e.g. 1 to not label first line)
         :param legend_ncol: The number of columns in the legend, defaults to 1
-        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving specific order of line indices
+        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving
+                            specific order of line indices
         :param no_extra_legend_space: True to put figure legend inside the figure box
         :param no_tight: don't use :func:`~matplotlib:matplotlib.pyplot.tight_layout` to adjust subplot positions
         :param legend_args: optional parameters for the legend
@@ -1794,14 +1851,7 @@ class GetDistPlotter(object):
         has_legend = self.settings.line_labels and legend_labels is not None and len(legend_labels) > 0
 
         if self.settings.tight_layout and not self.settings.constrained_layout and not no_tight:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                if self.settings.figure_legend_new_ax:
-                    spec = self.outer_gridspec
-                else:
-                    spec = self.gridspec
-                spec.tight_layout(self.fig, h_pad=self._share_kwargs.get('h_pad'),
-                                  w_pad=self._share_kwargs.get('w_pad'))
+            self._tight_layout()
 
         if has_legend:
             self.extra_artists = [self.add_legend(legend_labels,
@@ -1811,17 +1861,7 @@ class GetDistPlotter(object):
                                                   figure_legend_outside=not no_extra_legend_space, **legend_args)]
         self._subplots_adjust()
 
-    def _legend_frac_size(self, legend_rows):
-        if self.settings.legend_position_config == 1:
-            frac = self.settings.legend_frac_subplot_margin + legend_rows * self.settings.legend_frac_subplot_line
-        else:
-            frac = self.settings.legend_frac_subplot_margin + (
-                    legend_rows * self.settings.legend_fontsize * 0.015) / self.settings.subplot_size_inch
-        if self.plot_row == 1:
-            frac = min(frac, 0.5)
-        return frac / self.plot_row
-
-    def _rootDisplayName(self, root, i):
+    def _root_display_name(self, root, i):
         if hasattr(root, 'getLabel'):
             root = root.getLabel()
         elif hasattr(root, 'label'):
@@ -1829,7 +1869,7 @@ class GetDistPlotter(object):
         elif hasattr(root, 'getName'):
             root = escapeLatex(root.getName())
         elif isinstance(root, six.string_types):
-            return self._rootDisplayName(self.sampleAnalyser.samplesForRoot(root), i)
+            return self._root_display_name(self.sample_analyser.samples_for_root(root), i)
         if not root:
             root = 'samples' + str(i)
         return root
@@ -1845,31 +1885,36 @@ class GetDistPlotter(object):
         if legend_labels is None:
             if len(roots) < 2:
                 return []
-            return [self._rootDisplayName(root, i) for i, root in enumerate(roots) if root is not None]
+            return [self._root_display_name(root, i) for i, root in enumerate(roots) if root is not None]
         else:
             return legend_labels
 
     def plots_1d(self, roots, params=None, legend_labels=None, legend_ncol=None, label_order=None, nx=None,
-                 paramList=None, roots_per_param=False, share_y=None, markers=None, title_limit=None,
+                 param_list=None, roots_per_param=False, share_y=None, markers=None, title_limit=None,
                  xlims=None, param_renames={}, **kwargs):
         """
         Make an array of 1D marginalized density subplots
 
-        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for the samples to plot
+        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for
+                      the samples to plot
         :param params: list of names of parameters to plot
         :param legend_labels: list of legend labels
         :param legend_ncol: Number of columns for the legend.
-        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving specific order of line indices
+        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving
+                            specific order of line indices
         :param nx: number of subplots per row
-        :param paramList: name of .paramnames file listing specific subset of parameters to plot
+        :param param_list: name of .paramnames file listing specific subset of parameters to plot
         :param roots_per_param: True to use a different set of samples for each parameter:
-                      plots param[i] using roots[i] (where roots[i] is the list of sample root names to use for plotting parameter i).
-                      This is useful for example for  plotting one-parameter extensions of a baseline model, each with various data combinations.
+                      plots param[i] using roots[i] (where roots[i] is the list of sample root names to use for
+                      plotting parameter i).  This is useful for example for  plotting one-parameter extensions of a
+                      baseline model, each with various data combinations.
         :param share_y: True for subplots to share a common y axis with no horizontal space between subplots
-        :param markers: optional dict giving vertical marker values indexed by parameter, or a list of marker values for each parameter plotted
+        :param markers: optional dict giving vertical marker values indexed by parameter, or a list of marker values
+                        for each parameter plotted
         :param title_limit:if not None, a maginalized limit (1,2..) of the first root to print as the title of the plots
         :param xlims: list of [min,max] limits for the range of each parameter plot
-        :param param_renames: optional dictionary holding mapping between input names and equivalent names used in the samples.
+        :param param_renames: optional dictionary holding mapping between input names and equivalent names used in
+                              the samples.
         :param kwargs: optional keyword arguments for :func:`~GetDistPlotter.plot_1d`
         :return: The plot_col, plot_row subplot dimensions of the new figure
 
@@ -1888,10 +1933,10 @@ class GetDistPlotter(object):
             params = [self._check_param(root[0], param, param_renames) for root, param in zip(roots, params)]
         else:
             params = self.get_param_array(roots[0], params, param_renames)
-        if paramList is not None:
-            wantedParams = self._paramNameListFromFile(paramList)
+        if param_list is not None:
+            wanted_params = ParamNames(param_list).list()
             params = [param for param in params if
-                      param.name in wantedParams or param_renames.get(param.name, '') in wantedParams]
+                      param.name in wanted_params or param_renames.get(param.name, '') in wanted_params]
         nparam = len(params)
         if share_y is None:
             share_y = self.settings.prob_label is not None and nparam > 1
@@ -1921,14 +1966,16 @@ class GetDistPlotter(object):
         """
         Make an array of 2D line, filled or contour plots.
 
-        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of either of these) for the samples to plot
+        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of either of these) for the
+                      samples to plot
         :param param1: x parameter to plot
         :param params2: list of y parameters to plot against x
         :param param_pairs: list of [x,y] parameter pairs to plot; either specify param1, param2, or param_pairs
         :param nx: number of subplots per row
         :param legend_labels: The labels used for the legend.
         :param legend_ncol: The amount of columns in the legend.
-        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving specific order of line indices
+        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving
+                            specific order of line indices
         :param filled: True to plot filled contours
         :param shaded: True to shade by the density for the first root plotted
         :param kwargs: optional keyword arguments for :func:`~GetDistPlotter.plot_2d`
@@ -2001,7 +2048,8 @@ class GetDistPlotter(object):
         """
         Creates an array of 2D plots, where each plot uses different samples, x and y parameters
 
-        :param root_params_triplets: a list of (root, x, y) giving sample root names, and x and y parameter names to plot in each subplot
+        :param root_params_triplets: a list of (root, x, y) giving sample root names, and x and y parameter names to
+                                     plot in each subplot
         :param nx: number of subplots per row
         :param filled:  True for filled contours
         :param x_lim: limits for all the x axes.
@@ -2026,7 +2074,8 @@ class GetDistPlotter(object):
         for ax in [ax.get_xaxis(), ax.get_yaxis()]:
             ax.set_tick_params(which='both', direction='in', right=top_and_left, top=top_and_left)
 
-    def _get_marker(self, markers, index, name):
+    @staticmethod
+    def _get_marker(markers, index, name):
         if markers is not None:
             if isinstance(markers, dict):
                 return markers.get(name)
@@ -2044,28 +2093,37 @@ class GetDistPlotter(object):
         A triangle plot is an array of subplots with 1D plots along the diagonal, and 2D plots in the lower corner.
         The upper triangle can also be used by setting upper_roots.
 
-        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for the samples to plot
-        :param params: list of parameters to plot (default: all, can also use glob patterns to match groups of parameters)
+        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for
+                      the samples to plot
+        :param params: list of parameters to plot (default: all, can also use glob patterns to match groups of
+                       parameters)
         :param legend_labels: list of legend labels
-        :param plot_3d_with_param: for the 2D plots, make sample scatter plot, with samples colored by this parameter name (to make a '3D' plot)
+        :param plot_3d_with_param: for the 2D plots, make sample scatter plot, with samples colored by this parameter
+                                   name (to make a '3D' plot)
         :param filled: True for filled contours
         :param shaded: plot shaded density for first root (cannot be used with filled)
-        :param contour_args: optional dict (or list of dict) with arguments for each 2D plot (e.g. specifying color, alpha,etc)
+        :param contour_args: optional dict (or list of dict) with arguments for each 2D plot
+                            (e.g. specifying color, alpha, etc)
         :param contour_colors: list of colors for plotting contours (for each root)
         :param contour_ls: list of Line styles for contours (for each root)
         :param contour_lws: list of Line widths for contours (for each root)
         :param line_args: dict (or list of dict) with arguments for each 2D plot (e.g. specifying ls, lw, color, etc)
-        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving specific order of line indices
+        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving
+                            specific order of line indices
         :param legend_ncol: The number of columns for the legend
         :param legend_loc: The location for the legend
         :param upper_roots: set to fill the upper triangle with subplots using this list of sample root names
-        :param title_limit:if not None, a maginalized limit (1,2..) to print as the title of the first root on the diagonal 1D plots
-        :param upper_kwargs: dict for same-named arguments for use when making upper-triangle 2D plots (contour_colors, etc). Set show_1d=False to not add to the diagonal.
+        :param title_limit: if not None, a maginalized limit (1,2..) to print as the title of the first root on the
+                            diagonal 1D plots
+        :param upper_kwargs: dict for same-named arguments for use when making upper-triangle 2D plots
+                             (contour_colors, etc). Set show_1d=False to not add to the diagonal.
         :param diag1d_kwargs: list of dict for arguments when making 1D plots on grid diagonal
-        :param markers: optional dict giving marker values indexed by parameter, or a list of marker values for each parameter plotted
+        :param markers: optional dict giving marker values indexed by parameter, or a list of marker values for
+                        each parameter plotted
         :param marker_args: dictionary of optional arguments for adding markers (passed to axvline and/or axhline)
         :param param_limits: a dictionary holding a mapping from parameter names to axis limits for that parameter
-        :param kwargs: optional keyword arguments for :func:`~GetDistPlotter.plot_2d` or :func:`~GetDistPlotter.plot_3d` (lower triangle only)
+        :param kwargs: optional keyword arguments for :func:`~GetDistPlotter.plot_2d` or
+                      :func:`~GetDistPlotter.plot_3d` (lower triangle only)
 
         .. plot::
            :include-source:
@@ -2093,7 +2151,7 @@ class GetDistPlotter(object):
                          sharey=self.settings.no_triangle_axis_labels)
         lims = dict()
 
-        def defLineArgs(cont_args, cont_colors):
+        def def_line_args(cont_args, cont_colors):
             cols = []
             for plotno, _arg in enumerate(cont_args):
                 if not _arg.get('filled'):
@@ -2122,9 +2180,9 @@ class GetDistPlotter(object):
                                                          colors=upper_kwargs.get('contour_colors', contour_colors),
                                                          ls=upper_kwargs.get('contour_ls', contour_ls),
                                                          lws=upper_kwargs.get('contour_lws', contour_lws))
-            upper_line_args = upper_kwargs.get('line_args') or defLineArgs(upper_contour_args,
-                                                                           upper_kwargs.get('contour_colors',
-                                                                                            contour_colors))
+            upper_line_args = upper_kwargs.get('line_args') or def_line_args(upper_contour_args,
+                                                                             upper_kwargs.get('contour_colors',
+                                                                                              contour_colors))
             upargs = self._make_line_args(len(upper_roots), line_args=upper_line_args,
                                           ls=upper_kwargs.get('contour_ls', contour_ls),
                                           lws=upper_kwargs.get('contour_lws', contour_lws))
@@ -2132,7 +2190,7 @@ class GetDistPlotter(object):
         contour_args = self._make_contour_args(len(roots), filled=filled, contour_args=contour_args,
                                                colors=contour_colors, ls=contour_ls, lws=contour_lws)
         if line_args is None:
-            line_args = defLineArgs(contour_args, contour_colors)
+            line_args = def_line_args(contour_args, contour_colors)
         line_args = self._make_line_args(len(roots), line_args=line_args, ls=contour_ls, lws=contour_lws)
         roots1d = copy.copy(roots)
         if upper_roots is not None:
@@ -2260,7 +2318,8 @@ class GetDistPlotter(object):
 
         Set roots to use the same set of roots for every plot in the rectangle, or set
         yroots (list of list of roots) to use different set of roots for each row of the plot; alternatively
-        plot_roots allows you to specify explicitly (via list of list of list of roots) the set of roots for each individual subplot
+        plot_roots allows you to specify explicitly (via list of list of list of roots) the set of roots for each
+        individual subplot.
 
         :param xparams: list of parameters for the x axes
         :param yparams: list of parameters for the y axes
@@ -2268,15 +2327,20 @@ class GetDistPlotter(object):
                        set either roots or yroots
         :param roots: list of root names or :class:`~.mcsamples.MCSamples` instances.
                 Uses the same set of roots for every plot in the rectangle; set either roots or yroots.
-        :param plot_roots: Allows you to specify (via list of list of list of roots) the set of roots for each individual subplot
-        :param plot_texts: a 2D array (or list of lists) of a text label to put in each subplot (use a None entry to skip one)
-        :param xmarkers: optional dict giving vertical marker values indexed by parameter, or a list of marker values for each x parameter plotted
-        :param ymarkers: optional dict giving horizontal marker values indexed by parameter, or a list of marker values for each y parameter plotted
+        :param plot_roots: Allows you to specify (via list of list of list of roots) the set of roots
+                           for each individual subplot
+        :param plot_texts: a 2D array (or list of lists) of a text label to put in each subplot
+                           (use a None entry to skip one)
+        :param xmarkers: optional dict giving vertical marker values indexed by parameter, or a list of marker values
+                         for each x parameter plotted
+        :param ymarkers: optional dict giving horizontal marker values indexed by parameter, or a list of marker values
+                         for each y parameter plotted
         :param marker_args: arguments for :func:`~GetDistPlotter.add_x_marker` and :func:`~GetDistPlotter.add_y_marker`
         :param param_limits: a dictionary holding a mapping from parameter names to axis limits for that parameter
         :param legend_labels: list of labels for the legend
         :param legend_ncol: The number of columns for the legend
-        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving specific order of line indices
+        :param label_order: minus one to show legends in reverse order that lines were added, or a list giving specific
+                            order of line indices
         :param kwargs: arguments for :func:`~GetDistPlotter.plot_2d`.
         :return: the 2D list of :class:`~matplotlib:matplotlib.axes.Axes` created
 
@@ -2324,7 +2388,7 @@ class GetDistPlotter(object):
                     self.add_x_marker(xmarker, ax=ax, **marker_args)
                 if ymarker is not None:
                     self.add_y_marker(ymarker, ax=ax, **marker_args)
-                limits[xparam], limits[yparam] = self._updateLimits(res, limits.get(xparam), limits.get(yparam))
+                limits[xparam], limits[yparam] = self._update_limits(res, limits.get(xparam), limits.get(yparam))
                 if y != len(yparams) - 1:
                     self._no_x_ticklabels(ax)
                 if x != 0:
@@ -2420,12 +2484,13 @@ class GetDistPlotter(object):
 
         label_rotation = label_rotation or self.settings.colorbar_label_rotation
         kwargs = {}
-        if label_rotation and 10 < abs(label_rotation) < 170:
+        if label_rotation and (10 < -label_rotation < 170):
             kwargs['va'] = 'bottom'
         cb.set_label(param.latexLabel(), fontsize=self._scaled_fontsize(self.settings.axes_labelsize),
                      rotation=label_rotation, labelpad=self.settings.colorbar_label_pad, **kwargs)
 
-    def _makeParamObject(self, names, samples, obj=None):
+    @staticmethod
+    def _make_param_object(names, samples, obj=None):
         class SampleNames(object):
             pass
 
@@ -2470,17 +2535,17 @@ class GetDistPlotter(object):
         """
         params = self.get_param_array(root, params)
         if alpha_samples:
-            mcsamples = self.sampleAnalyser.samplesForRoot(root)
+            mcsamples = self.sample_analyser.samples_for_root(root)
             weights, pts = mcsamples.weights, mcsamples.samples
         else:
-            pts = self.sampleAnalyser.load_single_samples(root)
+            pts = self.sample_analyser.load_single_samples(root)
             weights = 1
-        names = self.paramNamesForRoot(root)
+        names = self.param_names_for_root(root)
         fixed_color = kwargs.get('fixed_color')  # if actually just a plain scatter plot
         samples = []
         for param in params:
             if hasattr(param, 'getDerived'):
-                samples.append(param.getDerived(self._makeParamObject(names, pts)))
+                samples.append(param.getDerived(self._make_param_object(names, pts)))
             else:
                 samples.append(pts[:, names.numberOfName(param.name)])
         if alpha_samples:
@@ -2541,7 +2606,8 @@ class GetDistPlotter(object):
 
         If roots is a list of more than one, additional densities are plotted as contour lines.
 
-        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for the samples to plot
+        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for
+                      the samples to plot
         :param param1: name of x parameter
         :param param2: name of y parameter
         :param color: color to plot the samples
@@ -2568,13 +2634,16 @@ class GetDistPlotter(object):
 
         If roots is a list of more than one, additional densities are plotted as contour lines.
 
-        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for the samples to plot
+        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for
+                      the samples to plot
         :param params: list with the three parameter names to plot (x, y, color)
-        :param params_for_plots: list of parameter triplets to plot for each root plotted; more general alternative to params
+        :param params_for_plots: list of parameter triplets to plot for each root plotted; more general
+                                 alternative to params
         :param color_bar: True if should include a color bar
         :param line_offset: The line index offset for added contours
         :param add_legend_proxy: True if should add a legend proxy
-        :param alpha_samples: if True, use alternative scatter style where all samples are plotted alphaed by their weights
+        :param alpha_samples: if True, use alternative scatter style where all samples are plotted alphaed by
+                              their weights
         :param ax: axes to add to use (defaults to current, generated if needed)
         :param kwargs: additional optional arguments:
 
@@ -2613,22 +2682,22 @@ class GetDistPlotter(object):
                                            alpha_samples=alpha_samples, ax=ax, **kwargs)
         for i, root in enumerate(roots[1:]):
             params = params_for_plots[i + 1]
-            res = self.add_2d_contours(root, params[0], params[1], i + line_offset,
-                                       add_legend_proxy=add_legend_proxy,
+            res = self.add_2d_contours(root, params[0], params[1], i + line_offset, add_legend_proxy=add_legend_proxy,
                                        zorder=i + 1, ax=ax, **contour_args[i])
-            xlims, ylims = self._updateLimits(res, xlims, ylims)
+            xlims, ylims = self._update_limits(res, xlims, ylims)
         if 'lims' not in kwargs:
             params = params_for_plots[0]
             lim1 = self._check_param_ranges(roots[0], params[0].name, xlims[0], xlims[1])
             lim2 = self._check_param_ranges(roots[0], params[1].name, ylims[0], ylims[1])
             kwargs['lims'] = [lim1[0], lim1[1], lim2[0], lim2[1]]
-        self.setAxes(params, ax=ax, **kwargs)
+        self.set_axes(params, ax=ax, **kwargs)
 
     def plots_3d(self, roots, param_sets, nx=None, legend_labels=None, **kwargs):
         """
         Create multiple 3D subplots
 
-        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for the samples to plot
+        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for
+                      the samples to plot
         :param param_sets: A list of triplets of parameter names to plot [(x,y, color), (x2,y2,color2)..]
         :param nx: number of subplots per row
         :param legend_labels: list of legend labels
@@ -2655,10 +2724,11 @@ class GetDistPlotter(object):
 
     def plots_3d_z(self, roots, param_x, param_y, param_z=None, max_z=None, **kwargs):
         """
-        Make set of sample scatter subplots of param_x against param_y, each coloured by values of parameters in param_z (all if None).
-        Any second or more samples in root are shown as contours
+        Make set of sample scatter subplots of param_x against param_y, each coloured by values of parameters
+        in param_z (all if None). Any second or more samples in root are shown as contours.
 
-        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for the samples to plot
+        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for
+                       the samples to plot
         :param param_x: x parameter name
         :param param_y: y parameter name
         :param param_z: list of parameter to names to color samples in each subplot (default: all)
@@ -2720,34 +2790,29 @@ class GetDistPlotter(object):
         :param watermark: a watermark text, e.g. to make the plot with some pre-final version number
         :param tag: A suffix to add to the filename.
         """
-        if fname is None: fname = os.path.basename(sys.argv[0]).replace('.py', '')
-        if tag: fname += '_' + tag
-        if '.' not in fname: fname += '.' + getdist.default_plot_output
-        if adir is not None and os.sep not in fname and '/' not in fname: fname = os.path.join(adir, fname)
+        if fname is None:
+            fname = os.path.basename(sys.argv[0]).replace('.py', '')
+        if tag:
+            fname += '_' + tag
+        if '.' not in fname:
+            fname += '.' + getdist.default_plot_output
+        if adir is not None and os.sep not in fname and '/' not in fname:
+            fname = os.path.join(adir, fname)
         adir = os.path.dirname(fname)
-        if adir and not os.path.exists(adir): os.makedirs(adir)
+        if adir and not os.path.exists(adir):
+            os.makedirs(adir)
         if watermark:
-            self.fig.text(0.45, 0.5, escapeLatex(watermark), fontsize=30, color='gray', ha='center', va='center',
-                          alpha=0.2)
+            self.fig.text(0.45, 0.5, escapeLatex(watermark), fontsize=30, color='gray',
+                          ha='center', va='center', alpha=0.2)
 
         self.fig.savefig(fname, bbox_extra_artists=self.extra_artists, bbox_inches='tight')
-
-    def _paramNameListFromFile(self, fname):
-        """
-        Reads param names for a file.
-
-        :param fname: The file to read
-        :return: A list of param names
-        """
-
-        return ParamNames(fname).list()
 
     def get_axes_for_params(self, *pars, **kwargs):
         """
         Get axes corresponding to given parameters
 
         :param pars: x or x,y or x,y,color parameters
-        :param ordered: if False match y,x as well as x,y
+        :param kwargs: set ordered=False to match y,x as well as x,y
         :return: axes instance or None if not found
         """
         ordered = kwargs.get('ordered', True)
@@ -2764,3 +2829,16 @@ class GetDistPlotter(object):
                         func([p.name if isinstance(p, ParamInfo) else p for p in params]) == par_list:
                     return ax
         return None
+
+    def samples_for_root(self, root, file_root=None, cache=True, settings=None):
+        """
+        Gets :class:`~.mcsamples.MCSamples` from root name
+        (or just return root if it is already an MCSamples instance).
+
+        :param root: The root name (without path, e.g. my_chains)
+        :param file_root: optional full root path, by default searches in self.chain_dirs
+        :param cache: if True, return cached object if already loaded
+        :param settings: optional dictionary of settings to use
+        :return: :class:`~.mcsamples.MCSamples` for the given root name
+        """
+        return self.sample_analyser.samples_for_root(root, file_root, cache, settings)

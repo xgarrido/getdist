@@ -33,20 +33,20 @@ class GetDistFileTest(unittest.TestCase):
 
     def testFileLoadPlot(self):
         samples = loadMCSamples(self.root, settings={'ignore_rows': 0.1})
-        g = plots.getSinglePlotter(chain_dir=self.tempdir, analysis_settings={'ignore_rows': 0.1})
-        self.assertEqual(g.sampleAnalyser.samplesForRoot('testchain').numrows, samples.numrows,
+        g = plots.get_single_plotter(chain_dir=self.tempdir, analysis_settings={'ignore_rows': 0.1})
+        self.assertEqual(g.samples_for_root('testchain').numrows, samples.numrows,
                          "Inconsistent chain loading")
-        self.assertEqual(g.sampleAnalyser.samplesForRoot('testchain').getTable().tableTex(),
+        self.assertEqual(g.samples_for_root('testchain').getTable().tableTex(),
                          samples.getTable().tableTex(), 'Inconsistent load result')
         samples.getConvergeTests(0.95)
         self.assertAlmostEqual(0.0009368, samples.GelmanRubin, 5, 'Gelman Rubin error, got ' + str(samples.GelmanRubin))
 
-        g = plots.getSinglePlotter()
+        g = plots.get_single_plotter()
         g.plot_3d(samples, ['x', 'y', 'x'])
         g.export(self.root + '_plot.pdf')
 
-        g = plots.getSinglePlotter(chain_dir=self.tempdir,
-                                   analysis_settings={'ignore_rows': 0.1, 'contours': [0.68, 0.95, 0.99]})
+        g = plots.get_single_plotter(chain_dir=self.tempdir,
+                                     analysis_settings={'ignore_rows': 0.1, 'contours': [0.68, 0.95, 0.99]})
         g.settings.num_plot_contours = 3
         g.plot_2d('testchain', ['x', 'y'])
 
@@ -71,7 +71,7 @@ class GetDistFileTest(unittest.TestCase):
         res = getdist_command([fname, self.root])
         self.assertTrue('-Ln(mean like)  = 2.30' in res)
 
-        def checkRun():
+        def check_run():
             for f in ['.py', '_2D.py', '_3D.py', '_tri.py']:
                 pyname = self.root + f
                 self.assertTrue(os.path.isfile(pyname))
@@ -81,7 +81,7 @@ class GetDistFileTest(unittest.TestCase):
                 os.remove(pdf)
                 os.remove(pyname)
 
-        checkRun()
+        check_run()
 
 
 class GetDistTest(unittest.TestCase):
@@ -170,21 +170,21 @@ class GetDistTest(unittest.TestCase):
         self.assertAlmostEqual(mixture.pdf([tester, 0.15]), marge.pdf([tester]) * cond.pdf([0.15]))
 
         samples = mixture.MCSamples(3000, label='Samples')
-        g = plots.getSubplotPlotter()
+        g = plots.get_subplot_plotter()
         g.triangle_plot([samples, mixture], filled=False)
-        g.newPlot()
+        g.new_plot()
         g.plot_1d(cond, 't')
 
         s1 = 0.0003
         covariance = [[s1 ** 2, 0.6 * s1 * 0.05, 0], [0.6 * s1 * 0.05, 0.05 ** 2, 0.2 ** 2], [0, 0.2 ** 2, 2 ** 2]]
         mean = [0.017, 1, -2]
         gauss = GaussianND(mean, covariance)
-        g = plots.getSubplotPlotter()
+        g = plots.get_subplot_plotter()
         g.triangle_plot(gauss, filled=True)
 
     def testPlots(self):
         self.samples = self.testdists.bimodal[0].MCSamples(12000, logLikes=True)
-        g = plots.getSinglePlotter()
+        g = plots.get_single_plotter(auto_close=True)
         samples = self.samples
         p = samples.getParams()
         samples.addDerived(p.x + (5 + p.y) ** 2, name='z')
@@ -193,41 +193,41 @@ class GetDistTest(unittest.TestCase):
         samples.updateBaseStatistics()
 
         g.plot_1d(samples, 'x')
-        g.newPlot()
+        g.new_plot()
         g.plot_1d(samples, 'y', normalized=True, marker=0.1, marker_color='b')
-        g.newPlot()
+        g.new_plot()
         g.plot_2d(samples, 'x', 'y')
-        g.newPlot()
+        g.new_plot()
         g.plot_2d(samples, 'x', 'y', filled=True)
-        g.newPlot()
+        g.new_plot()
         g.plot_2d(samples, 'x', 'y', shaded=True)
-        g.newPlot()
+        g.new_plot()
         g.plot_2d_scatter(samples, 'x', 'y', color='red', colors=['blue'])
-        g.newPlot()
+        g.new_plot()
         g.plot_3d(samples, ['x', 'y', 'z'])
 
-        g = plots.getSubplotPlotter(width_inch=8.5)
+        g = plots.get_subplot_plotter(width_inch=8.5, auto_close=True)
         g.plots_1d(samples, ['x', 'y'], share_y=True)
-        g.newPlot()
+        g.new_plot()
         g.triangle_plot(samples, ['x', 'y', 'z'])
         self.assertTrue(g.get_axes_for_params('x', 'z') == g.subplots[2, 0])
         self.assertTrue(g.get_axes_for_params('z', 'x', ordered=False) == g.subplots[2, 0])
         self.assertTrue(g.get_axes_for_params('x') == g.subplots[0, 0])
         self.assertTrue(g.get_axes_for_params('x', 'p', 'q') is None)
 
-        g.newPlot()
+        g.new_plot()
         g.triangle_plot(samples, ['x', 'y'], plot_3d_with_param='z')
-        g.newPlot()
+        g.new_plot()
         g.rectangle_plot(['x', 'y'], ['z'], roots=samples, filled=True)
         prob2 = self.testdists.bimodal[1]
         samples2 = prob2.MCSamples(12000)
-        g.newPlot()
+        g.new_plot()
         g.triangle_plot([samples, samples2], ['x', 'y'])
-        g.newPlot()
+        g.new_plot()
         g.plots_2d([samples, samples2], param_pairs=[['x', 'y'], ['x', 'z']])
-        g.newPlot()
+        g.new_plot()
         g.plots_2d([samples, samples2], 'x', ['z', 'y'])
-        g.newPlot()
+        g.new_plot()
         self.assertEqual([name.name for name in samples.paramNames.parsWithNames('x.*')], ['x.yx', 'x.2'])
         g.triangle_plot(samples, 'x.*')
         samples.updateSettings({'contours': '0.68 0.95 0.99'})
@@ -254,30 +254,70 @@ class UtilTest(unittest.TestCase):
         return fig, axs
 
     def test_one_locator(self):
-        # for debugging
-        self._plot_with_params(0.0001, 4, 0.0001/3)
+        samples = loadMCSamples(r'z://samples')
+
+        # You can also default font settings to the values set in your rcParams
+        g = plots.get_subplot_plotter(width_inch=3.5, scaling=False, rc_sizes=True)
+        g.settings.fontsize=10
+        g.settings.axes_labelsize = 10
+        g.settings.axes_fontsize = 10
+        g.triangle_plot([samples], ['x1', 'x2', 'x3'], legend_labels=['Label1', 'Label2'])
+        g.export(r'z:\test.pdf')
+
+        return
+        from getdist.gaussian_mixtures import GaussianND, Mixture2D
+        covariance = [[0.001 ** 2, 0.0006 * 0.05, 0], [0.0006 * 0.05, 0.05 ** 2, 0.2 ** 2], [0, 0.2 ** 2, 2 ** 2]]
+        mean = [0.02, 1, -2]
+        gauss = GaussianND(mean, covariance)
+        cov1 = [[0.001 ** 2, 0.0006 * 0.05], [0.0006 * 0.05, 0.05 ** 2]]
+        cov2 = [[0.001 ** 2, -0.0006 * 0.05], [-0.0006 * 0.05, 0.05 ** 2]]
+        mean1 = [0.02, 0.2]
+        mean2 = [0.023, 0.09]
+        mixture = Mixture2D([mean1, mean2], [cov1, cov2], names=['zobs', 't'], labels=[r'z_{\rm obs}', 't'],
+                            label='Model')
+
+        g = plots.get_subplot_plotter(subplot_size=1.2)
+        #g.make_figure(2,2)
+        #g.plot_2d(mixture,'zobs','t', filled=False)
+        g.triangle_plot([mixture], filled=False)
+        #g.plot_1d(gauss, 'param3')
+        #'g.triangle_plot(gauss, filled=True)
+        # g.subplots[1,0].tick_params(labelbottom=False, labelleft=False)
+        # g.subplots[0,0].tick_params(labelbottom=False, labelleft=False)
+        # g.subplots[1, 1].tick_params(labelbottom=False, labelleft=False)
+        # g.subplots[2,0].tick_params(labelbottom=False, labelleft=False)
+        # g.subplots[2,1].tick_params(labelbottom=False, labelleft=False)
+
+
+        # g = plots.get_single_plotter(width_inch=3.5)
+        # g.plot_2d([samples], ['x1', 'x2'])
+        # plt.gca().xaxis.set_ticks([])
+        g.export(r'z:\test.pdf')
+        return
+        self._plot_with_params(0.01, 1, 0.05)
         plt.draw()
 
     def test_locator(self):
         import matplotlib.backends.backend_pdf
         # Set TMPSMALL env variable to save the output PDF for inspection
-        temp = os.path.join(os.environ.get('TMPSMALL', tempfile.gettempdir()), 'output.pdf')
+        local = os.environ.get('TMPSMALL')
+        temp = os.path.join(local or tempfile.gettempdir(), 'output.pdf')
         pdf = matplotlib.backends.backend_pdf.PdfPages(temp)
         fails = []
         for x in np.arange(1, 5, 0.5):
-            for scale in [1e-4, 1e-2, 1e-1, 1, 10, 1000]:
-                for off in [scale / 3, 1, 5 * scale]:
+            for scale in [1e-4, 0.9e-2, 1e-1, 1, 14, 3000]:
+                for off in [scale / 3, 1, 7.4 * scale]:
                     fig, ax = self._plot_with_params(scale, x, off)
                     pdf.savefig(fig, bbox_inches='tight')
-                    if not len(ax.get_xticks()) or x >= 2 and len(ax.get_xticks()) < 2 and scale>1e-4:
+                    if not len(ax.get_xticks()) or x >= 2 and len(ax.get_xticks()) < 2 and scale > 1e-4:
                         fails.append([scale, x, off])
                     plt.close(fig)
-                    fig, ax = self._plot_with_params(scale, x, off, True)
-                    pdf.savefig(fig, bbox_inches='tight')
-                    plt.close(fig)
-                    del fig
+                    if local:
+                        fig, ax = self._plot_with_params(scale, x, off, True)
+                        pdf.savefig(fig, bbox_inches='tight')
+                        plt.close(fig)
         pdf.close()
-        if not os.environ.get('TMPSMALL'):
+        if not local:
             os.remove(temp)
 
         self.assertFalse(len(fails), "Too few ticks for %s" % fails)

@@ -868,7 +868,7 @@ class ConvergeStats(ParamResults):
                         if len(line.strip()) == 0: break
                         try:
                             self.R_eigs.append(line.split()[1])
-                        except:
+                        except Exception:
                             self.R_eigs.append('1e30')
                 elif 'Parameter auto-correlations' in textFileLines[i]:
                     self.auto_correlation_steps = [int(s) for s in textFileLines[i + 2].split()]

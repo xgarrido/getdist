@@ -638,7 +638,7 @@ class MainWindow(QMainWindow):
             batchjob.resetGrid(adir)
             self.openDirectory(adir)
         if self.plotter:
-            self.plotter.sampleAnalyser.reset(self.current_settings)
+            self.plotter.sample_analyser.reset(self.current_settings)
 
     def getRootname(self):
         rootname = None
@@ -775,7 +775,7 @@ class MainWindow(QMainWindow):
 
     def settingsChanged(self):
         if self.plotter:
-            self.plotter.sampleAnalyser.reset(self.current_settings, chain_settings_have_priority=False)
+            self.plotter.sample_analyser.reset(self.current_settings, chain_settings_have_priority=False)
         if self.tabWidget.currentIndex() == 0:
             if self.plotter and self.plotter.fig:
                 self.plotData()
@@ -1042,7 +1042,7 @@ class MainWindow(QMainWindow):
             if self.plotter is None or chain_dir or loadNew:
                 module = __import__(self.plot_module, fromlist=['dummy'])
                 if self.plotter and not loadNew:
-                    samps = self.plotter.sampleAnalyser.mcsamples
+                    samps = self.plotter.sample_analyser.mcsamples
                 else:
                     samps = None
                 # set path of grids, so that any custom grid settings get propagated
@@ -1057,7 +1057,7 @@ class MainWindow(QMainWindow):
 
                 self.plotter = module.getPlotter(chain_dir=chain_dirs, analysis_settings=self.current_settings)
                 if samps:
-                    self.plotter.sampleAnalyser.mcsamples = samps
+                    self.plotter.sample_analyser.mcsamples = samps
                 self.default_plot_settings = copy.copy(self.plotter.settings)
 
         except Exception as e:
@@ -1065,7 +1065,7 @@ class MainWindow(QMainWindow):
         return self.plotter
 
     def getSamples(self, root):
-        return self.plotter.sampleAnalyser.addRoot(self.root_infos[root])
+        return self.plotter.sample_analyser.add_root(self.root_infos[root])
 
     def _updateParameters(self):
         roots = self.checkedRootNames()
@@ -1197,7 +1197,7 @@ class MainWindow(QMainWindow):
             if root[-1] in (os.sep, "/"):
                 path = os.sep.join(path.replace("/", os.sep).split(os.sep)[:-1])
             info = plots.RootInfo(root, path, self.batch)
-            plotter.sampleAnalyser.addRoot(info)
+            plotter.sample_analyser.add_root(info)
 
             self.root_infos[root] = info
             item.setCheckState(Qt.Checked)
@@ -1235,7 +1235,7 @@ class MainWindow(QMainWindow):
                 if item and (count == 1 or item.isSelected()):
                     root = str(item.text())
                     logging.debug("Remove root %s" % root)
-                    self.plotter.sampleAnalyser.removeRoot(root)
+                    self.plotter.sample_analyser.remove_root(root)
                     self.root_infos.pop(root, None)
                     self.listRoots.takeItem(i)
         finally:
@@ -1414,9 +1414,7 @@ class MainWindow(QMainWindow):
             items_x = self.getXParams()
             items_y = self.getYParams()
             self.plotter.settings = copy.copy(self.default_plot_settings)
-            self.plotter.settings.setWithSubplotSize(3.5)
-            self.plotter.settings.legend_position_config = 2
-            self.plotter.settings.legend_frac_subplot_margin = 0.05
+            self.plotter.settings.set_with_subplot_size(3.5)
             self.plotter.settings.__dict__.update(self.custom_plot_settings)
 
             script = "import %s as gplot\nimport os\n\n" % self.script_plot_module
@@ -1424,16 +1422,16 @@ class MainWindow(QMainWindow):
             if override_setting:
                 script += ('analysis_settings = %s\n' % override_setting).replace(', ', ",\n" + " " * 21)
             if len(items_x) > 1 or len(items_y) > 1:
-                plot_func = 'getSubplotPlotter('
+                plot_func = 'get_subplot_plotter('
                 if not self.plotter.settings.fig_width_inch and len(items_y) and \
                         not (len(items_x) > 1 and len(items_y) > 1) and not self.trianglePlot.isChecked():
                     plot_func += 'subplot_size=3.5, '
 
             else:
-                plot_func = 'getSinglePlotter('
+                plot_func = 'get_single_plotter('
 
             for root in roots:
-                self.plotter.sampleAnalyser.addRoot(self.root_infos[root])
+                self.plotter.sample_analyser.add_root(self.root_infos[root])
 
             chain_dirs = []
             for root in roots:
@@ -1473,10 +1471,14 @@ class MainWindow(QMainWindow):
             width = self.plotWidget.width() * 0.75
 
             def setSizeQT(sz):
-                self.plotter.settings.setWithSubplotSize(max(1.5, sz / 80.))
+                self.plotter.settings.set_with_subplot_size(max(1.5, sz / 80.))
 
             def setSizeForN(n):
                 setSizeQT(min(height, width) / max(n, 2))
+
+            def make_space_for_legend():
+                if len(roots) > 1 and not self.plotter.settings.constrained_layout:
+                    self.plotter._tight_layout(rect=(0, 0, 1, 0.9))
 
             # Plot parameters
             filled = self.toggleFilled.isChecked()
@@ -1522,6 +1524,7 @@ class MainWindow(QMainWindow):
                 else:
                     ncol = None
                 self.plotter.plots_1d(roots, params=params, legend_ncol=ncol)
+                make_space_for_legend()
                 self.updatePlot()
                 script += "g.plots_1d(roots, params=params)\n"
 
@@ -1535,6 +1538,7 @@ class MainWindow(QMainWindow):
 
                     setSizeQT(min(height / len(items_y), width / len(items_x)))
                     self.plotter.rectangle_plot(items_x, items_y, roots=roots, filled=filled)
+                    make_space_for_legend()
                     self.updatePlot()
                     script += "g.rectangle_plot(xparams, yparams, roots=roots, filled=%s)\n" % filled
 
@@ -1566,11 +1570,12 @@ class MainWindow(QMainWindow):
                             labels = self.plotter._default_legend_labels(None, roots)
                             self.plotter.add_legend(labels)
                             script += 'g.add_legend(%s)\n' % labels
-                            if not self.settings.constrained_layout:
+                            if not self.plotter.settings.constrained_layout:
                                 self.plotter.fig.tight_layout()
                         else:
                             script += "pairs = %s\n" % pairs
                             self.plotter.plots_2d(roots, param_pairs=pairs, filled=filled, shaded=shaded)
+                            make_space_for_legend()
                             script += "g.plots_2d(roots, param_pairs=pairs, filled=%s, shaded=%s)\n" % (
                                 str(filled), str(shaded))
                         self.updatePlot()
@@ -1589,6 +1594,7 @@ class MainWindow(QMainWindow):
                             script += "sets = [" + ",".join(triplets) + "]\n"
                             script += "g.plots_3d(roots, sets)\n"
                             self.plotter.plots_3d(roots, sets)
+                            make_space_for_legend()
                         self.updatePlot()
             else:
                 text = ""
@@ -1693,9 +1699,9 @@ class MainWindow(QMainWindow):
             return
 
         self.script_edit = self.textWidget.toPlainText()
-        oldset = plots.defaultSettings
+        oldset = plots.default_settings
         oldrc = matplotlib.rcParams.copy()
-        plots.defaultSettings = plots.GetDistPlotSettings()
+        plots.default_settings = plots.GetDistPlotSettings()
         self._set_rc(self.orig_rc)
         self.showMessage("Rendering plot....")
         try:
@@ -1720,7 +1726,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.errorReport(e, caption="Plot script")
         finally:
-            plots.defaultSettings = oldset
+            plots.default_settings = oldset
             self._set_rc(oldrc)
             self.showMessage()
 

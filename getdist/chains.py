@@ -8,6 +8,7 @@ from getdist.convolve import autoConvolve
 import getdist.cobaya_interface as cobaya
 import pickle
 import six
+import logging
 
 # whether to write to terminal chain names and burn in details when loaded from file
 print_load_details = True
@@ -74,13 +75,18 @@ def chainFiles(root, chain_indices=None, ext='.txt', separator="_",
             if not root.endswith((os.sep, "/")):
                 fname += separator
             fname += str(index)
-        if not fname.endswith(ext): fname += ext
-        if index > first_chain and not os.path.exists(fname) or 0 < last_chain < index: break
+        if not fname.endswith(ext):
+            fname += ext
+        if index > first_chain and not os.path.exists(fname) or 0 < last_chain < index:
+            break
         if (chain_indices is None or index in chain_indices) \
-                and (chain_exclude is None or not index in chain_exclude) \
+                and (chain_exclude is None or index not in chain_exclude) \
                 and index >= first_chain and os.path.exists(fname):
             files.append(fname)
     return files
+
+
+_pandas_suggestion = True
 
 
 def loadNumpyTxt(fname, skiprows=None):
@@ -97,7 +103,11 @@ def loadNumpyTxt(fname, skiprows=None):
             return pandas.read_csv(fname, delim_whitespace=True, header=None, dtype=np.float64,
                                    skiprows=skiprows, comment='#').values
         else:
-            return np.loadtxt(fname, skiprows=skiprows)
+            global _pandas_suggestion
+            if _pandas_suggestion:
+                _pandas_suggestion = False
+                logging.warning('Install pandas for faster reading from text files')
+            return np.loadtxt(fname, skiprows=skiprows or 0)
     except ValueError:
         print('Error reading %s' % fname)
         raise
@@ -114,7 +124,8 @@ def getSignalToNoise(C, noise=None, R=None, eigs_only=False):
     :return: eigenvalues and matrix
     """
     if R is None:
-        if noise is None: raise WeightedSampleError('Must give noise or rotation R')
+        if noise is None:
+            raise WeightedSampleError('Must give noise or rotation R')
         R = np.linalg.inv(np.linalg.cholesky(noise))
 
     M = np.dot(R, C).dot(R.T)
@@ -134,7 +145,8 @@ def covToCorr(cov, copy=True):
     :param copy: True if we shouldn't modify the input matrix, False otherwise.
     :return: correlation matrix
     """
-    if copy: cov = cov.copy()
+    if copy:
+        cov = cov.copy()
     for i, di in enumerate(np.sqrt(cov.diagonal())):
         if di:
             cov[i, :] /= di
@@ -180,7 +192,8 @@ class WeightedSamples(object):
         :param loglikes: array of -log(Likelihood)
         :param name_tag: The name of this instance.
         :param label: latex label for these samples
-        :param files_are_chains: use False if the samples file (filename) does not start with two columns giving weights and -log(Likelihoods)
+        :param files_are_chains: use False if the samples file (filename) does not start with two columns giving
+                                 weights and -log(Likelihoods)
         :param min_weight_ratio: remove samples with weight less than min_weight_ratio times the maximum weight
         """
 
@@ -399,8 +412,10 @@ class WeightedSamples(object):
         Gets the auto-correlation length for parameter j
 
         :param j: The index of the parameter to use
-        :param weight_units: False to get result in sample point (row) units; weight_units=False gives standard definition for raw chains
-        :param min_corr: specifies a minimum value of the autocorrelation to use, e.g. where sampling noise is typically as large as the calculation
+        :param weight_units: False to get result in sample point (row) units; weight_units=False gives standard
+                             definition for raw chains
+        :param min_corr: specifies a minimum value of the autocorrelation to use, e.g. where sampling noise is
+                         typically as large as the calculation
         :param corr: The auto-correlation array to use, calculated internally by default using :func:`getAutocorrelation`
         :return: the auto-correlation length
         """
@@ -421,9 +436,10 @@ class WeightedSamples(object):
 
     def getEffectiveSamplesGaussianKDE(self, paramVec, h=0.2, scale=None, maxoff=None, min_corr=0.05):
         """
-        Roughly estimate an effective sample number for use in the leading term for the MISE (mean integrated squared error)
-        of a Gaussian-kernel KDE (Kernel Density Estimate). This is used for optimizing the kernel bandwidth, and though
-        approximate should be better than entirely ignoring samples correlations, or only counting distinct samples.
+        Roughly estimate an effective sample number for use in the leading term for the MISE
+        (mean integrated squared error) of a Gaussian-kernel KDE (Kernel Density Estimate). This is used for
+        optimizing the kernel bandwidth, and though approximate should be better than entirely ignoring samples
+        correlations, or only counting distinct samples.
 
         Uses fiducial assumed kernel scale h; result does depend on this (typically by factors O(2))
 
@@ -715,7 +731,7 @@ class WeightedSamples(object):
 
         return thin_ix
 
-    def randomSingleSamples_indices(self):
+    def random_single_samples_indices(self):
         """
         Returns an array of sample indices that give a list of weight-one samples, by randomly
         selecting samples depending on the sample weights
@@ -836,6 +852,8 @@ class WeightedSamples(object):
             loglikes = np.zeros(self.numrows)
         if make_dirs and not os.path.exists(os.path.dirname(root)):
             os.makedirs(os.path.dirname(root))
+        if root.endswith('.txt'):
+            root = root[:-3]
         np.savetxt(root + ('' if chain_index is None else '_' + str(chain_index + 1)) + '.txt',
                    np.hstack((self.weights.reshape(-1, 1), loglikes.reshape(-1, 1), self.samples)),
                    fmt=self.precision)

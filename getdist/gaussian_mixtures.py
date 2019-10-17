@@ -164,8 +164,10 @@ class MixtureND(object):
         :param no_limit_marge: if true don't raise error if limits on other parameters
         :return: :class:`~.densities.Density1D` instance
         """
-        if isinstance(index, six.string_types): index = self.names.index(index)
-        if not no_limit_marge: self.checkNoLimits([index])
+        if isinstance(index, six.string_types):
+            index = self.names.index(index)
+        if not no_limit_marge:
+            self.checkNoLimits([index])
         mn, mx = self.autoRanges(sigma_max)[index]
         x = np.linspace(mn, mx, num_points)
         like = self.pdf_marged(index, x)
@@ -283,9 +285,10 @@ class MixtureND(object):
         return mixture
 
     def checkNoLimits(self, keep_params):
-        if self.lims is None: return
+        if self.lims is None:
+            return
         for i, lim in enumerate(self.lims):
-            if not i in keep_params and (lim[0] is not None or lim[1] is not None):
+            if i not in keep_params and (lim[0] is not None or lim[1] is not None):
                 raise Exception(
                     'In general can only marginalize analytically if no hard boundary limits: ' + self.label)
 
@@ -294,7 +297,8 @@ class MixtureND(object):
         return self.lims[self.names.index(name)][1]
 
     def getLower(self, name):
-        if self.lims is None: return None
+        if self.lims is None:
+            return None
         return self.lims[self.names.index(name)][1]
 
 
@@ -356,7 +360,8 @@ class Mixture2D(MixtureND):
         :param y: optional value of y to evaluate pdf. If not specified, returns 1D marginalized value for x.
         :return: value of pdf at x or x,y
         """
-        if y is None: return super(Mixture2D, self).pdf(x)
+        if y is None:
+            return super(Mixture2D, self).pdf(x)
         tot = None
         for i, (mean, icov, weight, norm) in enumerate(zip(self.means, self.invcovs, self.weights, self.norms)):
             dx = x - mean[0]
@@ -395,9 +400,12 @@ class GaussianND(MixtureND):
         :param is_inv_cov: set True if cov is actually an inverse covariance
         :param kwargs: arguments passed to :class:`MixtureND`
         """
-        if isinstance(mean, six.string_types): mean = np.loadtxt(mean)
-        if isinstance(cov, six.string_types): cov = np.loadtxt(cov)
-        if is_inv_cov: cov = np.linalg.inv(cov)
+        if isinstance(mean, six.string_types):
+            mean = np.loadtxt(mean)
+        if isinstance(cov, six.string_types):
+            cov = np.loadtxt(cov)
+        if is_inv_cov:
+            cov = np.linalg.inv(cov)
         super(GaussianND, self).__init__([mean], [cov], **kwargs)
 
 
@@ -472,9 +480,12 @@ def randomTestMCSamples(ndim=4, ncomponent=1, nsamp=10009, nMCSamples=1, seed=10
     """
     get a list of MCSamples instances with random samples from random covariances and means
     """
-    if seed: np.random.seed(seed)
-    if names is None: names = ["x%s" % i for i in range(ndim)]
-    if labels is None: labels = ["x_{%s}" % i for i in range(ndim)]
+    if seed:
+        np.random.seed(seed)
+    if names is None:
+        names = ["x%s" % i for i in range(ndim)]
+    if labels is None:
+        labels = ["x_{%s}" % i for i in range(ndim)]
     return [RandomTestMixtureND(ndim, ncomponent, names).MCSamples(nsamp, labels=labels,
                                                                    name_tag='Sim %s' % (i + 1)) for i in
             range(nMCSamples)]

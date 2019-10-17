@@ -121,7 +121,7 @@ The MCSamples object can be passed to plot functions, or used to get many result
 for parameter names *x1* and *x2*::
 
     from getdist import plots
-    g = plots.getSinglePlotter()
+    g = plots.get_single_plotter()
     g.plot_2d(samples, ['x1', 'x2'])
 
 When you have many different chain files in the same directory,
@@ -129,7 +129,7 @@ plotting can work directly with the root file names. For example to compare *x* 
 from two chains with root names *xxx* and *yyy*::
 
 	from getdist import plots
-	g = plots.getSinglePlotter(chain_dir='/path/to/', analysis_settings={'ignore_rows':0.3})
+	g = plots.get_single_plotter(chain_dir='/path/to/', analysis_settings={'ignore_rows':0.3})
 	g.plot_2d(['xxx','yyy], ['x', 'y'])
 
 

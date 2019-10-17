@@ -2,12 +2,12 @@ from __future__ import absolute_import
 from __future__ import print_function
 
 try:
-    from getdist.plots import getSubplotPlotter
+    from getdist.plots import get_subplot_plotter
 except ImportError:
     import sys, os
 
     sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..')))
-    from getdist.plots import getSubplotPlotter
+    from getdist.plots import get_subplot_plotter
 import matplotlib.pyplot as plt
 import numpy as np
 from getdist.gaussian_mixtures import Mixture2D, Mixture1D, Gaussian1D, Gaussian2D, make_2D_Cov
@@ -288,7 +288,7 @@ def run_test_program(plots=['dists_2D', 'dists_1D'], sims=100, nsamp=default_nsa
     test2D = Test2DDistributions()
     test_settings = {'mult_bias_correction_order': mbc, 'boundary_correction_order': bco,
                      'smooth_scale_1D': -1, 'smooth_scale_2D': -1}
-    g = getSubplotPlotter(subplot_size=2)
+    g = get_subplot_plotter(subplot_size=2)
 
     colors = ['k', 'C0', 'C1', 'C2', 'C3', 'C4']
 
@@ -316,7 +316,7 @@ def run_test_program(plots=['dists_2D', 'dists_1D'], sims=100, nsamp=default_nsa
                        )
 
     if plots is None or 'dists_1D' in plots:
-        g.newPlot()
+        g.new_plot()
         start = time.time()
         compare1D(g, test1D.distributions(), nsamp=nsamp, settings=test_settings)
         print('1D timing:', time.time() - start)
@@ -324,7 +324,7 @@ def run_test_program(plots=['dists_2D', 'dists_1D'], sims=100, nsamp=default_nsa
         plt.savefig('test_dists_1D_mbc%s_bco%s_N%s.pdf' % (mbc, bco, nsamp), bbox_inches='tight')
 
     if plots is None or 'dists_2D' in plots:
-        g.newPlot()
+        g.new_plot()
         start = time.time()
         compare2D(g, test2D.distributions(), nsamp=nsamp, settings=test_settings)
         print('2D timing:', time.time() - start)

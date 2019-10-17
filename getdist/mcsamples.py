@@ -67,7 +67,8 @@ def loadMCSamples(file_root, ini=None, jobItem=None, no_cache=False, settings={}
         files = chainFiles(file_root, separator='.')
     path, name = os.path.split(file_root)
     path = getdist.cache_dir or path
-    if not os.path.exists(path): os.mkdir(path)
+    if not os.path.exists(path):
+        os.mkdir(path)
     cachefile = os.path.join(path, name) + '.py_mcsamples'
     samples = MCSamples(file_root, jobItem=jobItem, ini=ini, settings=settings)
     if os.path.isfile(file_root + '.paramnames'):
@@ -89,7 +90,7 @@ def loadMCSamples(file_root, ini=None, jobItem=None, no_cache=False, settings={}
                           np.any(np.array(samples.contours) != np.array(cache.contours))
                 cache.updateSettings(ini=ini, settings=settings, doUpdate=changed)
                 return cache
-        except Exception as e:
+        except Exception:
             pass
     if not len(files):
         raise IOError('No chains found: ' + file_root)
@@ -2003,8 +2004,7 @@ class MCSamples(Chains):
             ranges_file_cobaya = (
                     self.root + (
                 '' if self.root.endswith((os.sep, "/")) else _separator_files) + 'updated.yaml')
-            for ranges_file in [
-                ranges_file_classic, ranges_file_cobaya_old, ranges_file_cobaya]:
+            for ranges_file in [ranges_file_classic, ranges_file_cobaya_old, ranges_file_cobaya]:
                 if os.path.isfile(ranges_file):
                     self.ranges = ParamBounds(ranges_file)
                     return
@@ -2181,10 +2181,10 @@ class MCSamples(Chains):
         interpGrid = None
         for ix1, contour in enumerate(self.contours):
 
-            marge_limits_bot = par.has_limits_bot and \
-                               not self.force_twotail and density1D.P[0] > max_frac_twotail[ix1]
-            marge_limits_top = par.has_limits_top and \
-                               not self.force_twotail and density1D.P[-1] > max_frac_twotail[ix1]
+            marge_limits_bot = par.has_limits_bot and not self.force_twotail \
+                               and density1D.P[0] > max_frac_twotail[ix1]
+            marge_limits_top = par.has_limits_top and not self.force_twotail \
+                               and density1D.P[-1] > max_frac_twotail[ix1]
 
             if not marge_limits_bot or not marge_limits_top:
                 # give limit
@@ -2465,7 +2465,7 @@ class MCSamples(Chains):
             f.write("import getdist.plots as plots, os\n")
             f.write("g=plots.GetDistPlotter(chain_dir=r'%s')\n" % (self.batch_path or os.path.dirname(self.root)))
 
-            f.write("g.settings.setWithSubplotSize(%s)\n" % subplot_size)
+            f.write("g.settings.set_with_subplot_size(%s)\n" % subplot_size)
             f.write("roots = ['%s']\n" % self.rootname)
             f.write(text + '\n')
             ext = ext or self.plot_output
