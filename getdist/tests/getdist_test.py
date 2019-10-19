@@ -231,7 +231,7 @@ class GetDistTest(unittest.TestCase):
         self.assertEqual([name.name for name in samples.paramNames.parsWithNames('x.*')], ['x.yx', 'x.2'])
         g.triangle_plot(samples, 'x.*')
         samples.updateSettings({'contours': '0.68 0.95 0.99'})
-        g.settings.num_contours = 3
+        g.settings.num_plot_contours = 3
         g.plot_2d(samples, 'x', 'y', filled=True)
         g.add_y_bands(0.2, 1.5)
         g.add_x_bands(-0.1, 1.2, color='red')
@@ -254,7 +254,7 @@ class UtilTest(unittest.TestCase):
         return fig, axs
 
     def test_one_locator(self):
-        self._plot_with_params(0.01, 1, 0.05)
+        self._plot_with_params(0.01, 1, 0.05, True)
         plt.draw()
 
     def test_locator(self):
