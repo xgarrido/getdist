@@ -76,7 +76,7 @@ class GetDistPlotSettings(_BaseObject):
     :ivar line_dash_styles: dict mapping line styles to detailed dash styles,
                             default:  {'--': (3, 2), '-.': (4, 1, 1, 1)}
     :ivar line_labels: True if you want to automatically add legends when adding more than one line to subplots
-    :ivar line_styles: list of default line styles/colors (['-k','-r','--C0',...]) or name of a standard colormap
+    :ivar line_styles: list of default line styles/colors (['-k', '-r', '--C0', ...]) or name of a standard colormap
                        (e.g. tab10), or a list of tuples of line styles and colors for each line
     :ivar linewidth: relative linewidth (at reference size)
     :ivar linewidth_contour: linewidth for lines in filled contours
@@ -288,13 +288,14 @@ def get_single_plotter(ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False,
 
     For a half-column plot for a paper use width_inch=3.464.
 
-    Use this or :func:`~getSubplotPlotter` to make a :class:`~.plots.GetDistPlotter` instance for making plots.
+    Use this or :func:`~get_subplot_plotter` to make a :class:`~.plots.GetDistPlotter` instance for making plots.
     If you want customized sizes or styles for all plots, you can make a new module
     defining these functions, and then use it exactly as a replacement for getdist.plots.
 
     :param ratio: The ratio between height and width.
     :param width_inch:  The width of the plot in inches
-    :param scaling: whether to scale down fonts and line widths for small sizes (relative to reference sizes, 3.5 inch)
+    :param scaling: whether to scale down fonts and line widths for small subplot axis sizes
+                    (relative to reference sizes, 3.5 inch)
     :param rc_sizes: set default font sizes from matplotlib's current rcParams if no explicit settings passwed in kwargs
     :param kwargs: arguments for :class:`GetDistPlotter`
     :return: The :class:`~.plots.GetDistPlotter` instance
@@ -317,7 +318,7 @@ def get_subplot_plotter(subplot_size=2, width_inch=None, scaling=True, rc_sizes=
     If width_inch is None, just makes plot as big as needed for given subplot_size, otherwise fixes total width
     and sets default font sizes etc. from matplotlib's default rcParams.
 
-    Use this or :func:`~getSinglePlotter` to make a :class:`~.plots.GetDistPlotter` instance for making plots.
+    Use this or :func:`~get_single_plotter` to make a :class:`~.plots.GetDistPlotter` instance for making plots.
     If you want customized sizes or styles for all plots, you can make a new module
     defining these functions, and then use it exactly as a replacement for getdist.plots.
 
@@ -1245,7 +1246,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=4, nMCSamples=2)
-            g = plots.getSinglePlotter(width_inch = 4)
+            g = plots.get_single_plotter(width_inch = 4)
             g.plot_2d([samples1,samples2], 'x1', 'x2', filled=True);
 
         """
@@ -1334,7 +1335,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=2, nMCSamples=2)
-            g = plots.getSinglePlotter(width_inch=4)
+            g = plots.get_single_plotter(width_inch=4)
             g.plot_2d([samples1, samples2], ['x0','x1'], filled=False);
             g.add_x_bands(0, 1)
         """
@@ -1363,7 +1364,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples= gaussian_mixtures.randomTestMCSamples(ndim=2, nMCSamples=1)
-            g = plots.getSinglePlotter(width_inch=4)
+            g = plots.get_single_plotter(width_inch=4)
             g.plot_2d(samples, ['x0','x1'], filled=True);
             g.add_y_bands(0, 1)
         """
@@ -1515,7 +1516,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=2, nMCSamples=2)
-            g = plots.getSinglePlotter(width_inch=4)
+            g = plots.get_single_plotter(width_inch=4)
             g.plot_1d([samples1, samples2], 'x0', marker=0)
 
         .. plot::
@@ -1523,7 +1524,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=2, nMCSamples=2)
-            g = plots.getSinglePlotter(width_inch=3)
+            g = plots.get_single_plotter(width_inch=3)
             g.plot_1d([samples1, samples2], 'x0', normalized=True, colors=['green','black'])
 
         """
@@ -1912,7 +1913,7 @@ class GetDistPlotter(_BaseObject):
         :param share_y: True for subplots to share a common y axis with no horizontal space between subplots
         :param markers: optional dict giving vertical marker values indexed by parameter, or a list of marker values
                         for each parameter plotted
-        :param title_limit:if not None, a maginalized limit (1,2..) of the first root to print as the title of the plots
+        :param title_limit: if not None, a maginalized limit (1,2..) of the first root to print as the title of the plots
         :param xlims: list of [min,max] limits for the range of each parameter plot
         :param param_renames: optional dictionary holding mapping between input names and equivalent names used in
                               the samples.
@@ -1924,7 +1925,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=4, nMCSamples=2)
-            g = plots.getSubplotPlotter()
+            g = plots.get_subplot_plotter()
             g.plots_1d([samples1, samples2], ['x0', 'x1', 'x2'], nx=3, share_y=True, legend_ncol =2,
                          markers={'x1':0}, colors=['red', 'green'], ls=['--', '-.'])
 
@@ -1987,7 +1988,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=4, nMCSamples=2)
-            g = plots.getSubplotPlotter(subplot_size=4)
+            g = plots.get_subplot_plotter(subplot_size=4)
             g.settings.legend_frac_subplot_margin = 0.05
             g.plots_2d([samples1, samples2], param_pairs=[['x0', 'x1'], ['x1', 'x2']],
                                     nx=2, legend_ncol=2, colors=['blue', 'red'])
@@ -2131,7 +2132,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=4, nMCSamples=2)
-            g = plots.getSubplotPlotter()
+            g = plots.get_subplot_plotter()
             g.triangle_plot([samples1, samples2], filled=True, legend_labels = ['Contour 1', 'Contour 2'])
 
         .. plot::
@@ -2139,7 +2140,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=4, nMCSamples=2)
-            g = plots.getSubplotPlotter()
+            g = plots.get_subplot_plotter()
             g.triangle_plot([samples1, samples2], ['x0','x1','x2'], plot_3d_with_param='x3')
 
         """
@@ -2353,7 +2354,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=4, nMCSamples=2)
-            g = plots.getSubplotPlotter()
+            g = plots.get_subplot_plotter()
             g.rectangle_plot(['x0','x1'], ['x2','x3'], roots = [samples1, samples2], filled=True)
         """
         xparams = makeList(xparams)
@@ -2665,7 +2666,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=3, nMCSamples=2)
-            g = plots.getSinglePlotter(width_inch=4)
+            g = plots.get_single_plotter(width_inch=4)
             g.plot_3d([samples1, samples2], ['x0','x1','x2']);
         """
         roots = makeList(roots)
@@ -2713,7 +2714,7 @@ class GetDistPlotter(_BaseObject):
 
             from getdist import plots, gaussian_mixtures
             samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=5, nMCSamples=2)
-            g = plots.getSubplotPlotter(subplot_size=4)
+            g = plots.get_subplot_plotter(subplot_size=4)
             g.plots_3d([samples1, samples2], [['x0', 'x1', 'x2'], ['x3', 'x4', 'x2']], nx=2);
         """
         roots = makeList(roots)
