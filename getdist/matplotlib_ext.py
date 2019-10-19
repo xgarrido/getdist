@@ -111,7 +111,7 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
         nbins = min(self._nbins if self._nbins != 'auto' else 9, nbins)
         # First get typical ticks so we can calculate actual label length
         while True:
-            locs = self._spaced_ticks(vmin + delta, vmax - delta, label_len, min_n_ticks, nbins, False)
+            locs, _ = self._spaced_ticks(vmin + delta, vmax - delta, label_len, min_n_ticks, nbins, False)
             if len(locs) or min_n_ticks == 1:
                 break
             if nbins == 2:
@@ -123,8 +123,9 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
             locs = self._bounded_prune(locs, label_len)
             if len(locs) > 1:
                 step = locs[1] - locs[0]
-            if len(locs) < 3 or step < label_len * (1.1 if len(locs) < 4 else 1.5) \
-                    or (locs[0] - vmin > min(step, label_len * 1.5) or vmax - locs[-1] > min(step, label_len * 1.5)):
+            if len(locs) < max(3, nbins) or step < label_len * (1.1 if len(locs) < 4 else 1.5) \
+                    or (locs[0] - vmin > min(step * 1.01, label_len * 1.5) or
+                        vmax - locs[-1] > min(step * 1.01, label_len * 1.5)):
                 # check for long labels, labels that are too tightly spaced, or large tick-free gaps at axes ends
                 delta = label_len / 2 if self.bounded_prune else 0
                 for fac in [1.5, 1.35, 1.1]:
@@ -138,22 +139,23 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                 try_shorter = True
                 locs = []
                 while min_n_ticks > 1:
-                    locs = self._spaced_ticks(vmin + delta, vmax - delta, label_len, min_n_ticks, nbins)
+                    locs, good = self._spaced_ticks(vmin + delta, vmax - delta, label_len, min_n_ticks, nbins)
                     if len(locs):
-                        new_len = self._get_label_len(locs)
-                        if not np.isclose(new_len, label_len):
-                            label_len = new_len
-                            delta = label_len / 2 if self.bounded_prune else 0
-                            if retry:
-                                retry = False
-                                continue
-                            locs = self._bounded_prune(locs, label_len)
+                        if not good:
+                            new_len = self._get_label_len(locs)
+                            if not np.isclose(new_len, label_len):
+                                label_len = new_len
+                                delta = label_len / 2 if self.bounded_prune else 0
+                                if retry:
+                                    retry = False
+                                    continue
+                                locs = self._bounded_prune(locs, label_len)
                     elif min_n_ticks > 1 and try_shorter:
                         # Original label length may be too long for good ticks which exist
                         delta /= 2
                         label_len /= 2
                         try_shorter = False
-                        locs = self._spaced_ticks(vmin + delta, vmax - delta, label_len, min_n_ticks, nbins)
+                        locs, _ = self._spaced_ticks(vmin + delta, vmax - delta, label_len, min_n_ticks, nbins)
                         if len(locs):
                             label_len = self._get_label_len(locs)
                             delta = label_len / 2 if self.bounded_prune else 0
@@ -165,9 +167,16 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                     min_n_ticks -= 1
                     locs = []
                 if len(locs) <= 1 and size_ratio * self._font_aspect < 0.9:
+                    scale, offset = ticker.scale_range(vmin, vmax, 1)
+                    # Try to get any two points that will fit
+                    for sc in [scale, scale / 10.]:
+                        locs = [round((vmin * 3 + vmax) / (4 * sc)) * sc,
+                                round((vmin + 3 * vmax) / (4 * sc)) * sc]
+                        if locs[0] != locs[1] and locs[0] >= vmin and locs[1] <= vmax:
+                            if self._valid(locs):
+                                return locs
                     # if no ticks, check for short integer number location in the range that may have been missed
                     # because adding any other values would make label length much longer
-                    scale, offset = ticker.scale_range(vmin, vmax, 1)
                     loc = round((vmin + vmax) / (2 * scale)) * scale
                     if vmin < loc < vmax:
                         locs = [loc]
@@ -181,7 +190,8 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
     def _valid(self, locs):
         label_len = self._get_label_len(locs)
         return (len(locs) < 2 or locs[1] - locs[0] > label_len * 1.1) and \
-               (locs[0] - self._range[0] > label_len / 2) and (self._range[1] - locs[-1] > label_len / 2)
+               (not self.bounded_prune or (locs[0] - self._range[0] > label_len / 2)
+                and (self._range[1] - locs[-1] > label_len / 2))
 
     def _spaced_ticks(self, vmin, vmax, _label_len, min_ticks, nbins, changing_lengths=True):
 
@@ -189,15 +199,16 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
         _vmin = vmin - offset
         _vmax = vmax - offset
         _range = _vmax - _vmin
+        eps = _range * 1e-6
         _full_range = self._range[1] - self._range[0]
         for sc in [100, 10, 1]:
             round_center = round((_vmin + _vmax) / (2 * sc * scale)) * sc * scale
-            if _vmin <= round_center <= _vmax:
+            if _vmin - eps <= round_center <= _vmax + eps:
                 break
 
         label_len = _label_len * 1.1
         raw_step = max(label_len, _range / ((nbins - 2) if nbins > 2 else 1))
-        raw_step1 = _range / max(1, (nbins - 1))
+        raw_step1 = _range / max(1, (nbins - (0 if self.bounded_prune else 1)))
         best = []
         for step_ix, (_steps, _offsets) in enumerate(zip(self._step_groups, self._offsets)):
 
@@ -237,25 +248,47 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                     high = _le(_vmax - best_vmin, offset, step)
                     if min_ticks <= high - low + 1 <= nbins:
                         ticks = np.arange(low, high + 1) * step + (best_vmin + offset)
+
+                        if off and round_center and changing_lengths:
+                            # If no nice number, see if we can shift points to get one
+                            sc = 10 ** (math.log10(step) // 1)
+                            if step > 2*sc:
+                                for shift in [0, -1, 1, -2, 2]:
+                                    if abs(shift * sc) >= step / 2:
+                                        break
+                                    shifted = ticks + shift * sc
+                                    if any(np.round(shifted / sc / 10) * 10 == np.round(shifted / sc)) \
+                                            and self._valid(shifted):
+                                        ticks = shifted
+
                         big_step = step > raw_step1 and step > label_len * 1.5
                         no_more_ticks = min(3, len(ticks)) <= len(best)
-                        odd_gaps = min_ticks > 1 and \
-                                   ((len(ticks) == 2 and ticks[-1] - ticks[0] > _full_range * 0.7)
-                                    or (ticks[0] - self._range[0] > max(min(_full_range / 3, step), label_len * 1.1) or
-                                        self._range[1] - ticks[-1] > max(min(_full_range / 3, step), label_len * 1.1)))
+                        odd_gaps = min_ticks > 1 and ((len(ticks) == 2 and step > _full_range * 0.7)
+                                                      or self.bounded_prune and (
+                                                          (ticks[0] - self._range[0] > max(min(_full_range / 3, step),
+                                                                                           label_len * 1.1) or
+                                                           self._range[1] - ticks[-1] > max(min(_full_range / 3, step),
+                                                                                            label_len * 1.1)))
+                                                      or not self.bounded_prune and
+                                                      len(ticks) == 3 and step > max(2 * label_len, _full_range / 3)
+                                                      )
+
                         close_ticks = step < label_len * 1.3 and len(ticks) > 2
                         if (big_step and odd_gaps or close_ticks) and no_more_ticks:
                             continue
                         if len(best) and odd_gaps and step_ix or changing_lengths and not self._valid(ticks):
                             continue
-                        if step_ix and big_step and (not len(best) or len(ticks) < len(best)) \
-                                or close_ticks or (len(ticks) < 3 and nbins > (3 if step_ix else 4)) or odd_gaps:
+
+                        too_few_points = len(ticks) < 3 and (nbins > (3 if step_ix else 4)) or (
+                                len(ticks) < max(2, (nbins + 1) // 2))
+                        if off and not step_ix or step_ix and big_step and (not len(best) or len(ticks) < len(best)) \
+                                or close_ticks or too_few_points or odd_gaps:
                             # prefer spacing where some ticks nearish the ends and ticks not too close in centre
                             best = ticks
                         else:
-                            return ticks
+                            return ticks, True
 
-        return best
+        return best, False
 
 
 def _closeto(ms, edge, offset, step):

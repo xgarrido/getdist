@@ -1478,7 +1478,7 @@ class MainWindow(QMainWindow):
 
             def make_space_for_legend():
                 if len(roots) > 1 and not self.plotter.settings.constrained_layout:
-                    self.plotter._tight_layout(rect=(0, 0, 1, 0.9))
+                    self.plotter._tight_layout(rect=(0, 0, 1, 1 - min(0.7, len(roots) * 0.05)))
 
             # Plot parameters
             filled = self.toggleFilled.isChecked()

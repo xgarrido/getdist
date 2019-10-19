@@ -224,7 +224,8 @@ class ParamList(object):
                               makeList(renames.get(par.name, [])))
             if known_names.intersection(given_names):
                 return par
-        if error: raise Exception("parameter name not found: " + name)
+        if error:
+            raise Exception("parameter name not found: " + name)
         return None
 
     def numberOfName(self, name):
@@ -235,7 +236,8 @@ class ParamList(object):
         :return: index of the parameter, or -1 if not found
         """
         for i, par in enumerate(self.names):
-            if par.name == name: return i
+            if par.name == name:
+                return i
         return -1
 
     def parsWithNames(self, names, error=False, renames={}):

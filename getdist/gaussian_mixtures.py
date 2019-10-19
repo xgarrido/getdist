@@ -198,7 +198,8 @@ class MixtureND(object):
 
     def _params_to_indices(self, params):
         indices = []
-        if params is None: params = self.names
+        if params is None:
+            params = self.names
         for p in params:
             if isinstance(p, six.string_types):
                 indices.append(self.names.index(p))
@@ -219,7 +220,8 @@ class MixtureND(object):
         """
 
         indices = self._params_to_indices(params)
-        if not no_limit_marge: self.checkNoLimits(indices)
+        if not no_limit_marge:
+            self.checkNoLimits(indices)
         indices = np.array(indices)
         if self.names is not None:
             names = [self.names[i] for i in indices]
@@ -229,7 +231,8 @@ class MixtureND(object):
             lims = [self.lims[i] for i in indices]
         else:
             lims = None
-        if label is None: label = self.label
+        if label is None:
+            label = self.label
         covs = [cov[np.ix_(indices, indices)] for cov in self.covs]
         means = [mean[indices] for mean in self.means]
         if len(indices) == 2:

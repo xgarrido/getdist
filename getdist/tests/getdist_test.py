@@ -240,60 +240,20 @@ class GetDistTest(unittest.TestCase):
 class UtilTest(unittest.TestCase):
     """test some getdist routines and plotting"""
 
-    def _plot_with_params(self, scale, x, off, default=False):
+    def _plot_with_params(self, scale, x, off, prune, default=False):
         from getdist.matplotlib_ext import BoundedMaxNLocator
 
         fig, axs = plt.subplots(1, 1, figsize=(x, 1))
         axs.plot([off - scale, off + scale], [0, 1])
         axs.set_yticks([])
         if not default:
-            axs.xaxis.set_major_locator(BoundedMaxNLocator())
+            axs.xaxis.set_major_locator(BoundedMaxNLocator(prune=prune))
         axs.xaxis.get_major_formatter().useOffset = False
         fig.suptitle("%s: scale %g, size %g, offset %g" % ('Default' if default else 'Bounded', scale, x, off),
                      fontsize=6)
         return fig, axs
 
     def test_one_locator(self):
-        samples = loadMCSamples(r'z://samples')
-
-        # You can also default font settings to the values set in your rcParams
-        g = plots.get_subplot_plotter(width_inch=3.5, scaling=False, rc_sizes=True)
-        g.settings.fontsize=10
-        g.settings.axes_labelsize = 10
-        g.settings.axes_fontsize = 10
-        g.triangle_plot([samples], ['x1', 'x2', 'x3'], legend_labels=['Label1', 'Label2'])
-        g.export(r'z:\test.pdf')
-
-        return
-        from getdist.gaussian_mixtures import GaussianND, Mixture2D
-        covariance = [[0.001 ** 2, 0.0006 * 0.05, 0], [0.0006 * 0.05, 0.05 ** 2, 0.2 ** 2], [0, 0.2 ** 2, 2 ** 2]]
-        mean = [0.02, 1, -2]
-        gauss = GaussianND(mean, covariance)
-        cov1 = [[0.001 ** 2, 0.0006 * 0.05], [0.0006 * 0.05, 0.05 ** 2]]
-        cov2 = [[0.001 ** 2, -0.0006 * 0.05], [-0.0006 * 0.05, 0.05 ** 2]]
-        mean1 = [0.02, 0.2]
-        mean2 = [0.023, 0.09]
-        mixture = Mixture2D([mean1, mean2], [cov1, cov2], names=['zobs', 't'], labels=[r'z_{\rm obs}', 't'],
-                            label='Model')
-
-        g = plots.get_subplot_plotter(subplot_size=1.2)
-        #g.make_figure(2,2)
-        #g.plot_2d(mixture,'zobs','t', filled=False)
-        g.triangle_plot([mixture], filled=False)
-        #g.plot_1d(gauss, 'param3')
-        #'g.triangle_plot(gauss, filled=True)
-        # g.subplots[1,0].tick_params(labelbottom=False, labelleft=False)
-        # g.subplots[0,0].tick_params(labelbottom=False, labelleft=False)
-        # g.subplots[1, 1].tick_params(labelbottom=False, labelleft=False)
-        # g.subplots[2,0].tick_params(labelbottom=False, labelleft=False)
-        # g.subplots[2,1].tick_params(labelbottom=False, labelleft=False)
-
-
-        # g = plots.get_single_plotter(width_inch=3.5)
-        # g.plot_2d([samples], ['x1', 'x2'])
-        # plt.gca().xaxis.set_ticks([])
-        g.export(r'z:\test.pdf')
-        return
         self._plot_with_params(0.01, 1, 0.05)
         plt.draw()
 
@@ -307,13 +267,14 @@ class UtilTest(unittest.TestCase):
         for x in np.arange(1, 5, 0.5):
             for scale in [1e-4, 0.9e-2, 1e-1, 1, 14, 3000]:
                 for off in [scale / 3, 1, 7.4 * scale]:
-                    fig, ax = self._plot_with_params(scale, x, off)
-                    pdf.savefig(fig, bbox_inches='tight')
-                    if not len(ax.get_xticks()) or x >= 2 and len(ax.get_xticks()) < 2 and scale > 1e-4:
-                        fails.append([scale, x, off])
-                    plt.close(fig)
+                    for prune in [True, False]:
+                        fig, ax = self._plot_with_params(scale, x, off, prune)
+                        pdf.savefig(fig, bbox_inches='tight')
+                        if not len(ax.get_xticks()) or x >= 2 and len(ax.get_xticks()) < 2 and scale > 1e-4:
+                            fails.append([scale, x, off, prune])
+                        plt.close(fig)
                     if local:
-                        fig, ax = self._plot_with_params(scale, x, off, True)
+                        fig, ax = self._plot_with_params(scale, x, off, True, True)
                         pdf.savefig(fig, bbox_inches='tight')
                         plt.close(fig)
         pdf.close()

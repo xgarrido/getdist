@@ -106,11 +106,27 @@ class GetDistPlotSettings(_BaseObject):
     :ivar solid_contour_palefactor: factor by which to make 2D outer filled contours paler when only specifying
                                     one contour color
     :ivar tight_layout: use tight_layout to layout, avoid overlaps and remove white space; if it doesn't work
-                        try constrained_layout
+                        try constrained_layout. If true it is applied when calling :func:`~GetDistPlotter.finish_plot`
+                        (which is called automatically by plots_xd(), triangle_plot and rectangle_plot).
     :ivar title_limit: show parameter limits over 1D plots, 1 for first limit (68% default), 2 second, etc.
     :ivar title_limit_labels: whether or not to include parameter label when adding limits above 1D plots
     :ivar title_limit_fontsize: font size to use for limits in plot titles (defaults to axes_labelsize)
     """
+
+    _deprecated = {'lab_fontsize': 'axes_labelsize',
+                   'colorbar_rotation': 'colorbar_tick_rotation',
+                   'font_size ': 'fontsize',
+                   'legend_frac_subplot_line': None,
+                   'legend_position_config': None,
+                   'lineM': 'line_styles',
+                   'lw1': 'linewidth',
+                   'lw_contour': 'linewidth_contour',
+                   'lw_likes': 'linewidth_meanlikes',
+                   'thin_long_subplot_ticks': None,
+                   'tick_prune': None,
+                   'tight_gap_fraction': None,
+                   'x_label_rotation': 'axis_tick_x_rotation'
+                   }
 
     def __init__(self, subplot_size_inch=2, fig_width_inch=None):
         """
@@ -154,7 +170,7 @@ class GetDistPlotSettings(_BaseObject):
         self.colorbar_tick_rotation = None
         self.colorbar_label_pad = 0
         self.colorbar_label_rotation = -90
-        self.colorbar_axes_fontsize = None
+        self.colorbar_axes_fontsize = 11
 
         self.subplot_size_inch = subplot_size_inch
 
@@ -182,7 +198,7 @@ class GetDistPlotSettings(_BaseObject):
         self.alpha_factor_contour_lines = 0.5
         self.shade_meanlikes = False
 
-        self.axes_fontsize = 12
+        self.axes_fontsize = 11
         self.axes_labelsize = 14
 
         self.axis_marker_color = 'gray'
@@ -202,14 +218,7 @@ class GetDistPlotSettings(_BaseObject):
         self.title_limit = 0
         self.title_limit_labels = True
         self.title_limit_fontsize = None
-
-    @property  # backwards compatibility
-    def lineM(self):
-        return self.line_styles
-
-    @lineM.setter  # backwards compatibility
-    def lineM(self, value):
-        self.line_styles = value
+        self._fail_on_not_exist = True
 
     def _numerical_fontsize(self, size):
         size = size or self.fontsize or 11
@@ -260,6 +269,7 @@ class GetDistPlotSettings(_BaseObject):
 
 
 default_settings = GetDistPlotSettings()
+defaultSettings = default_settings
 
 
 def get_plotter(**kwargs):
@@ -723,13 +733,13 @@ class GetDistPlotter(_BaseObject):
 
     def _get_default_ls(self, plotno=0):
         """
-        Get default line style, taken from settings.lineM
+        Get default line style, taken from settings.line_styles
 
         :param plotno: The number of the line added to the plot to get the style of.
         :return: Tuple of line style and color for default line style (e.g. ('-', 'r')).
         """
         try:
-            res = self._get_color_at_index(self.settings.lineM, plotno)
+            res = self._get_color_at_index(self.settings.line_styles, plotno)
             if matplotlib.colors.is_color_like(res):
                 return '-', res
             if isinstance(res, six.string_types):
@@ -741,7 +751,7 @@ class GetDistPlotter(_BaseObject):
                 # assume tuple of line style and color
                 return res[0], res[1]
         except IndexError:
-            print('Error adding line ' + str(plotno) + ': Add more default line stype entries to settings.lineM')
+            print('Error adding line ' + str(plotno) + ': Add more default line stype entries to settings.line_styles')
             raise
 
     def _get_line_styles(self, plotno, **kwargs):
@@ -858,28 +868,15 @@ class GetDistPlotter(_BaseObject):
         d = self.param_bounds_for_root(root)
         low = d.getLower(name)
         if low is not None:
-            xmin = max(xmin, low)
+            xmin = max(xmin, low) if xmin is not None else low
         up = d.getUpper(name)
         if up is not None:
-            xmax = min(xmax, up)
+            xmax = min(xmax, up) if xmax is not None else up
         return xmin, xmax
 
     def _get_param_bounds(self, roots, name):
         xmin, xmax = None, None
         for root in roots:
-            d = self.param_bounds_for_root(root)
-            low = d.getLower(name)
-            if low is not None:
-                if xmin is None:
-                    xmin = low
-                else:
-                    xmin = max(xmin, low)
-            up = d.getUpper(name)
-            if up is not None:
-                if xmax is None:
-                    xmax = up
-                else:
-                    xmax = min(xmax, up)
             xmin, xmax = self._check_param_ranges(root, name, xmin, xmax)
         return xmin, xmax
 
@@ -923,7 +920,7 @@ class GetDistPlotter(_BaseObject):
             ax.plot(density.x, density.likes, **kwargs)
         if title_limit:
             if isinstance(root, MixtureND):
-                raise ValueError('limit_title not currently supported for MixtureND')
+                raise ValueError('title_limit not currently supported for MixtureND')
             samples = self.sample_analyser.samples_for_root(root)
             if self.settings.title_limit_labels:
                 caption = samples.getInlineLatex(param, limit=title_limit)
@@ -1392,14 +1389,16 @@ class GetDistPlotter(_BaseObject):
         axis.set_major_formatter(formatter)
 
     def _set_axis_properties(self, axis, rotation=0, labelsize=None):
-        self._auto_ticks(axis)
         labelsize = self._scaled_fontsize(labelsize, self.settings.axes_fontsize)
         axis.set_tick_params(which='major', labelrotation=rotation, labelsize=labelsize)
         axis.get_offset_text().set_fontsize(labelsize * 3 / 4 if labelsize > 7 else labelsize)
         if isinstance(axis, matplotlib.axis.YAxis):
+            self._auto_ticks(axis, prune=self._share_kwargs.get('hspace') is not None)
             if abs(rotation - 90) < 45:
                 for ticklabel in axis.get_ticklabels():
                     ticklabel.set_verticalalignment("center")
+        else:
+            self._auto_ticks(axis, prune=self._share_kwargs.get('wspace') is not None)
 
     def _set_main_axis_properties(self, axis, x):
         """
@@ -1862,7 +1861,9 @@ class GetDistPlotter(_BaseObject):
         self._subplots_adjust()
 
     def _root_display_name(self, root, i):
-        if hasattr(root, 'getLabel'):
+        if hasattr(root, 'get_kabel'):
+            root = root.get_label()
+        elif hasattr(root, 'getLabel'):
             root = root.getLabel()
         elif hasattr(root, 'label'):
             root = root.label
@@ -2064,9 +2065,9 @@ class GetDistPlotter(_BaseObject):
         self.finish_plot()
         return plot_col, plot_row
 
-    def _auto_ticks(self, axis, max_ticks=None):
+    def _auto_ticks(self, axis, max_ticks=None, prune=True):
         axis.set_major_locator(
-            BoundedMaxNLocator(nbins=max_ticks or self.settings.axis_tick_max_labels,
+            BoundedMaxNLocator(nbins=max_ticks or self.settings.axis_tick_max_labels, prune=prune,
                                step_groups=self.settings.axis_tick_step_groups))
 
     @staticmethod
@@ -2217,6 +2218,20 @@ class GetDistPlotter(_BaseObject):
                                 label_right=True, no_zero=True, no_ylabel=True, no_ytick=True, line_args=line_args,
                                 lims=param_limits.get(param.name), ax=ax, _ret_range=True, **diag1d_kwargs)
             lims[i] = xlim
+
+        if upper_roots is not None:
+            # make label on first 1D plot appropriate for 2D plots in rest of row
+            label_ax = self.subplots[0, 0].twinx()
+            self._inner_ticks(label_ax)
+            label_ax.yaxis.tick_left()
+            label_ax.yaxis.set_label_position('left')
+            label_ax.yaxis.set_offset_position('left')
+            # label_ax.get_shared_y_axes().join(label_ax, self.subplots[0, 1])
+            label_ax.set_ylim(lims[0])
+            self.set_ylabel(params[0], ax=label_ax)
+            self._set_main_axis_properties(label_ax.yaxis, False)
+            self.subplots[0, 0].yaxis.set_visible(False)
+
         for i, param in enumerate(params):
             marker = self._get_marker(markers, i, param.name)
             for i2 in range(i + 1, len(params)):
@@ -2244,8 +2259,7 @@ class GetDistPlotter(_BaseObject):
 
                 if upper_roots is not None:
                     ax = self._subplot(i2, i, pars=(param2, param), sharex=self.subplots[bottom, i2],
-                                       sharey=self.subplots[i, 0] if i > 0 else (
-                                           self.subplots[0, 1] if i2 > 1 else None))
+                                       sharey=self.subplots[i, 0] if i > 0 else label_ax)
                     pair.reverse()
                     if plot_3d_with_param is not None:
                         self.plot_3d(upper_roots, pair + [col_param], color_bar=False, line_offset=1,
@@ -2262,20 +2276,10 @@ class GetDistPlotter(_BaseObject):
                         self.add_y_marker(marker, ax=ax, **marker_args)
                     if marker2 is not None:
                         self.add_x_marker(marker2, ax=ax, **marker_args)
+
                     ax.set_xlim(lims[i2])
                     ax.set_ylim(lims[i])
                     self._inner_ticks(ax)
-
-        if upper_roots is not None:
-            # make label on first 1D plot appropriate for 2D plots in rest of row
-            label_ax = self.subplots[0, 0].twinx()
-            label_ax.get_shared_y_axes().join(label_ax, self.subplots[0, 1])
-            label_ax.yaxis.tick_left()
-            label_ax.yaxis.set_label_position('left')
-            label_ax.yaxis.set_offset_position('left')
-            label_ax.set_ylim(lims[0])
-            self.set_ylabel(params[0], ax=label_ax)
-            self._set_main_axis_properties(label_ax.yaxis, False)
 
         self._subplots_adjust()
 
@@ -2452,7 +2456,8 @@ class GetDistPlotter(_BaseObject):
         if not ax_args.get('color_label_in_axes'):
             self.add_colorbar_label(cb, param)
         self._set_axis_properties(cb.ax.yaxis if orientation == 'vertical' else cb.ax.xaxis,
-                                  self.settings.colorbar_tick_rotation or 0, self.settings.colorbar_axes_fontsize)
+                                  self.settings.colorbar_tick_rotation or 0,
+                                  self.settings.colorbar_axes_fontsize or None)
         return cb
 
     def add_line(self, xdata, ydata, zorder=0, color=None, ls=None, ax=None, **kwargs):
@@ -2549,7 +2554,7 @@ class GetDistPlotter(_BaseObject):
             else:
                 samples.append(pts[:, names.numberOfName(param.name)])
         if alpha_samples:
-            # use most sampples, but alpha with weight
+            # use most samples, but alpha with weight
             from matplotlib.cm import ScalarMappable
             from matplotlib.colors import Normalize, to_rgb
             max_weight = weights.max()
@@ -2575,8 +2580,7 @@ class GetDistPlotter(_BaseObject):
             cols[:, 3] = weights / dup_fac * alpha
             alpha = None
             self.last_scatter = mappable
-            scat = (ax or plt.gca()).scatter(x, y, edgecolors='none',
-                                             s=scatter_size or self.settings.scatter_size,
+            scat = (ax or plt.gca()).scatter(x, y, edgecolors='none', s=scatter_size or self.settings.scatter_size,
                                              c=cols, alpha=alpha)
         else:
             if extra_thin > 1:
