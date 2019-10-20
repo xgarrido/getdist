@@ -214,6 +214,8 @@ class GetDistTest(unittest.TestCase):
         self.assertTrue(g.get_axes_for_params('z', 'x', ordered=False) == g.subplots[2, 0])
         self.assertTrue(g.get_axes_for_params('x') == g.subplots[0, 0])
         self.assertTrue(g.get_axes_for_params('x', 'p', 'q') is None)
+        self.assertTrue(g.get_axes(ax=('x', 'z')) == g.subplots[2, 0])
+        self.assertTrue(g.get_axes(ax=(2, 0)) == g.subplots[2, 0])
 
         g.new_plot()
         g.triangle_plot(samples, ['x', 'y'], plot_3d_with_param='z')

@@ -269,7 +269,7 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                                                                                            label_len * 1.1) or
                                                            self._range[1] - ticks[-1] > max(min(_full_range / 3, step),
                                                                                             label_len * 1.1)))
-                                                      or not self.bounded_prune and
+                                                      or not self.bounded_prune and step_ix and
                                                       len(ticks) == 3 and step > max(2 * label_len, _full_range / 3)
                                                       )
 

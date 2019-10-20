@@ -296,7 +296,7 @@ def get_single_plotter(ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False,
     :param width_inch:  The width of the plot in inches
     :param scaling: whether to scale down fonts and line widths for small subplot axis sizes
                     (relative to reference sizes, 3.5 inch)
-    :param rc_sizes: set default font sizes from matplotlib's current rcParams if no explicit settings passwed in kwargs
+    :param rc_sizes: set default font sizes from matplotlib's current rcParams if no explicit settings passed in kwargs
     :param kwargs: arguments for :class:`GetDistPlotter`
     :return: The :class:`~.plots.GetDistPlotter` instance
     """
@@ -325,7 +325,7 @@ def get_subplot_plotter(subplot_size=2, width_inch=None, scaling=True, rc_sizes=
     :param subplot_size: The size of each subplot in inches
     :param width_inch: Optional total width in inches
     :param scaling: whether to scale down fonts and line widths for small sizes (relative to reference sizes, 3.5 inch)
-    :param rc_sizes: set default font sizes from matplotlib's current rcParams if no explicit settings passwed in kwargs
+    :param rc_sizes: set default font sizes from matplotlib's current rcParams if no explicit settings passed in kwargs
     :param kwargs: arguments for :class:`GetDistPlotter`
     :return: The :class:`GetDistPlotter` instance
     """
@@ -682,6 +682,7 @@ class GetDistPlotter(_BaseObject):
         self.fig = None
         self.subplots = None
         self.plot_col = 0
+        self._last_ax = None
 
     def show_all_settings(self):
         """
@@ -890,13 +891,14 @@ class GetDistPlotter(_BaseObject):
         :param plotno: The index of the line being added to the plot
         :param normalized: True if areas under lines should match, False if normalized to unit maximum.
                            Default from settings.norm_1d_density.
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param title_limit:if not None, a maginalized limit (1,2..) to print as the title of the plot
         :param kwargs: arguments for :func:`~matplotlib:matplotlib.pyplot.plot`
         :return: min, max for the plotted density
         """
         param = self._check_param(root, param)
-        ax = ax or self._subplot_number(0, pars=(param,))
+        ax = self.get_axes(ax, pars=(param,))
         normalized = normalized if normalized is not None else self.settings.norm_1d_density
         if isinstance(root, MixtureND):
             density = root.density1D(param.name)
@@ -972,7 +974,8 @@ class GetDistPlotter(_BaseObject):
         :param density: optional :class:`~.densities.Density2D` to plot rather than that computed automatically
                         from the samples
         :param alpha: alpha for the contours added
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param kwargs: optional keyword arguments:
 
                - **filled**: True to make filled contours
@@ -981,7 +984,7 @@ class GetDistPlotter(_BaseObject):
         :return: bounds (from :meth:`~.densities.GridDensity.bounds`) for the 2D density plotted
         """
 
-        ax = ax or self._subplot_number(0)
+        ax = self.get_axes(ax)
         if density is None:
             param1, param2 = self.get_param_array(root, param_pair or [param1, param2])
             ax.getdist_params = (param1, param2)
@@ -1070,11 +1073,12 @@ class GetDistPlotter(_BaseObject):
         :param colormap: color map, default to settings.colormap (see :class:`GetDistPlotSettings`)
         :param density: optional user-provided :class:`~.densities.Density2D` to plot rather than
                         the auto-generated density from the samples
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
+         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param kwargs: keyword arguments for :func:`~matplotlib:matplotlib.pyplot.contourf`
         """
         param1, param2 = self.get_param_array(root, [param1, param2])
-        ax = ax or self._subplot_number(0, pars=(param1, param2))
+        ax = self.get_axes(ax, pars=(param1, param2))
         density = density or self.sample_analyser.get_density_grid(root, param1, param2,
                                                                    conts=self.settings.num_plot_contours,
                                                                    likes=self.settings.shade_meanlikes)
@@ -1228,7 +1232,8 @@ class GetDistPlotter(_BaseObject):
         :param add_legend_proxy: True if should add to the legend proxy
         :param line_offset: line_offset if not adding first contours to plot
         :param proxy_root_exclude: any root names not to include when adding to the legend proxy
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (created if None)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param kwargs: additional optional arguments:
 
                 * **filled**: True for filled contours
@@ -1257,7 +1262,7 @@ class GetDistPlotter(_BaseObject):
             param_pair = param1
             param1 = None
         param_pair = self.get_param_array(roots[0], param_pair or [param1, param2])
-        ax = ax or self._subplot_number(0, param_pair)
+        ax = self.get_axes(ax, pars=param_pair)
         if self.settings.progress:
             print('plotting: ', [param.name for param in param_pair])
         if shaded and not kwargs.get('filled'):
@@ -1287,7 +1292,8 @@ class GetDistPlotter(_BaseObject):
         :param color: optional color of the marker
         :param ls: optional line style of the marker
         :param lw: optional line width
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param kwargs: additional arguments to pass to :func:`~matplotlib:matplotlib.pyplot.axvline`
         """
         if color is None:
@@ -1296,7 +1302,7 @@ class GetDistPlotter(_BaseObject):
             ls = self.settings.axis_marker_ls
         if lw is None:
             lw = self.settings.axis_marker_lw
-        (ax or plt.gca()).axvline(marker, ls=ls, color=color, lw=lw, **kwargs)
+        self.get_axes(ax).axvline(marker, ls=ls, color=color, lw=lw, **kwargs)
 
     def add_y_marker(self, marker, color=None, ls=None, lw=None, ax=None, **kwargs):
         """
@@ -1306,7 +1312,8 @@ class GetDistPlotter(_BaseObject):
         :param color: optional color of the marker
         :param ls: optional line style of the marker
         :param lw: optional line width.
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param kwargs: additional arguments to pass to :func:`~matplotlib:matplotlib.pyplot.axhline`
         """
         if color is None:
@@ -1315,7 +1322,7 @@ class GetDistPlotter(_BaseObject):
             ls = self.settings.axis_marker_ls
         if lw is None:
             lw = self.settings.axis_marker_lw
-        (ax or plt.gca()).axhline(marker, ls=ls, color=color, lw=lw, **kwargs)
+        self.get_axes(ax).axhline(marker, ls=ls, color=color, lw=lw, **kwargs)
 
     def add_x_bands(self, x, sigma, color='gray', ax=None, alpha1=0.15, alpha2=0.1, **kwargs):
         """
@@ -1324,7 +1331,8 @@ class GetDistPlotter(_BaseObject):
         :param x: central x value for bands
         :param sigma: 1 sigma error on x
         :param color: The base color to use
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param alpha1: alpha for the 1 sigma band; note this is drawn on top of the 2 sigma band. Set to zero if you
                        only want 2 sigma band
         :param alpha2: alpha for the 2 sigma band. Set to zero if you only want 1 sigma band
@@ -1339,7 +1347,7 @@ class GetDistPlotter(_BaseObject):
             g.plot_2d([samples1, samples2], ['x0','x1'], filled=False);
             g.add_x_bands(0, 1)
         """
-        ax = ax or plt.gca()
+        ax = self.get_axes(ax)
         c = color
         if alpha2 > 0:
             ax.axvspan((x - sigma * 2), (x + sigma * 2), color=c, alpha=alpha2, **kwargs)
@@ -1353,7 +1361,8 @@ class GetDistPlotter(_BaseObject):
         :param y: central y value for bands
         :param sigma: 1 sigma error on y
         :param color: The base color to use
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param alpha1: alpha for the 1 sigma band; note this is drawn on top of the 2 sigma band. Set to zero if
                        you only want 2 sigma band
         :param alpha2: alpha for the 2 sigma band. Set to zero if you only want 1 sigma band
@@ -1368,7 +1377,7 @@ class GetDistPlotter(_BaseObject):
             g.plot_2d(samples, ['x0','x1'], filled=True);
             g.add_y_bands(0, 1)
         """
-        ax = ax or plt.gca()
+        ax = self.get_axes(ax)
         c = color
         if alpha2 > 0:
             ax.axhspan((y - sigma * 2), (y + sigma * 2), color=c, alpha=alpha2, **kwargs)
@@ -1434,11 +1443,12 @@ class GetDistPlotter(_BaseObject):
         :param pos: optional position of the axes ['left' | 'bottom' | 'width' | 'height']
         :param color_label_in_axes: If True, and params has at last three entries, puts text in the axis to label
                                     the third parameter
-        :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param other_args: Not used, just quietly ignore so that set_axes can be passed general kwargs
         :return: an :class:`~matplotlib:matplotlib.axes.Axes` instance
         """
-        ax = ax or plt.gca()
+        ax = self.get_axes(ax)
         if lims is not None:
             ax.axis(lims)
         if do_xlabel or not no_label_no_numbers:
@@ -1449,9 +1459,9 @@ class GetDistPlotter(_BaseObject):
             self.set_xlabel(params[0], ax)
         elif no_label_no_numbers:
             self._no_x_ticklabels(ax)
+        if do_ylabel or not no_label_no_numbers:
+            self._set_main_axis_properties(ax.yaxis, False)
         if len(params) > 1:
-            if do_ylabel or not no_label_no_numbers:
-                self._set_main_axis_properties(ax.yaxis, False)
             if do_ylabel:
                 self.set_ylabel(params[1], ax)
             elif no_label_no_numbers:
@@ -1465,22 +1475,23 @@ class GetDistPlotter(_BaseObject):
         Sets the label for the x axis.
 
         :param param: the :class:`~.paramnames.ParamInfo` for the x axis parameter
-        :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         """
-        ax = ax or plt.gca()
+        ax = self.get_axes(ax)
         lab_fontsize = self._scaled_fontsize(self.settings.axes_labelsize)
-        ax.set_xlabel(param.latexLabel(), fontsize=lab_fontsize,
-                      verticalalignment='baseline',
-                      labelpad=4 + lab_fontsize)  # test_size because need a number not e.g. 'medium'
+        ax.set_xlabel(param.latexLabel(), fontsize=lab_fontsize, verticalalignment='baseline',
+                      labelpad=4 + lab_fontsize)
 
     def set_ylabel(self, param, ax=None):
         """
         Sets the label for the y axis.
 
         :param param: the :class:`~.paramnames.ParamInfo` for the y axis parameter
-        :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         """
-        ax = ax or plt.gca()
+        ax = self.get_axes(ax)
         ax.set_ylabel(param.latexLabel(), fontsize=self._scaled_fontsize(self.settings.axes_labelsize))
 
     def plot_1d(self, roots, param, marker=None, marker_color=None, label_right=False, title_limit=None,
@@ -1500,7 +1511,8 @@ class GetDistPlotter(_BaseObject):
         :param no_zero: If true does not show tick label at zero on y axis
         :param normalized: plot normalized densities (if False, densities normalized to peak at 1)
         :param param_renames: optional dictionary mapping input parameter names to equivalent names used by the samples
-        :param ax: axes to use (will be created if None)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param kwargs: additional optional keyword arguments:
 
                 * **lims**: optional limits for x range of the plot [xmin, xmax]
@@ -1531,7 +1543,7 @@ class GetDistPlotter(_BaseObject):
         roots = makeList(roots)
         if self.fig is None:
             self.make_figure()
-        ax = ax or self._subplot_number(0, pars=(param,))
+        ax = self.get_axes(ax, pars=(param,))
         plotparam = None
         plotroot = None
         _ret_range = kwargs.pop('_ret_range', None)
@@ -1796,7 +1808,7 @@ class GetDistPlotter(_BaseObject):
                 self.legend.get_frame().set_edgecolor('none')
         else:
             args['frameon'] = self.settings.legend_frame and not colored_text
-            self.legend = (ax or plt.gca()).legend(lines, legend_labels, loc=legend_loc, **args)
+            self.legend = self.get_axes(ax).legend(lines, legend_labels, loc=legend_loc, **args)
         if align_right:
             vp = self.legend._legend_box._children[-1]._children[0]
             for c in vp._children:
@@ -1937,6 +1949,8 @@ class GetDistPlotter(_BaseObject):
             params = [self._check_param(root[0], param, param_renames) for root, param in zip(roots, params)]
         else:
             params = self.get_param_array(roots[0], params, param_renames)
+        if param_list is None:
+            param_list = kwargs.pop('paramList', None)
         if param_list is not None:
             wanted_params = ParamNames(param_list).list()
             params = [param for param in params if
@@ -1955,7 +1969,8 @@ class GetDistPlotter(_BaseObject):
             if roots_per_param:
                 plot_roots = roots[i]
             marker = self._get_marker(markers, i, param.name)
-            self.plot_1d(plot_roots, param, no_ylabel=share_y and i % self.plot_col > 0, marker=marker,
+            no_ticks = share_y and i % self.plot_col > 0
+            self.plot_1d(plot_roots, param, no_ytick=no_ticks, no_ylabel=no_ticks, marker=marker,
                          param_renames=param_renames, title_limit=title_limit, ax=ax, **kwargs)
             if xlims is not None:
                 ax.set_xlim(xlims[i][0], xlims[i][1])
@@ -2025,6 +2040,29 @@ class GetDistPlotter(_BaseObject):
                          label_order=label_order)
         return plot_col, plot_row
 
+    def get_axes(self, ax=None, pars=None):
+        """
+        Get the axes instance corresponding to the given subplot (y,x) coordinates, parameter list, or otherwise
+        if ax is None get the last subplot axes used, or generate the first (possibly only) subplot if none.
+
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes`, (y,x) subplot coordinate,
+                   tuple of parameter names, or None to get last axes used or otherwise default to first subplot
+        :param pars: optional list of parameters to associate with the axes
+        :return: an :class:`~matplotlib:matplotlib.axes.Axes` instance, or None if the specified axes don't exist
+        """
+        if isinstance(ax, int):
+            ax = self.fig.axes[ax]
+        elif isinstance(ax, (list, tuple)):
+            if isinstance(ax[0], six.string_types) or isinstance(ax[0], ParamInfo):
+                ax = self.get_axes_for_params(*ax)
+            else:
+                ax = self.subplots[ax[0], ax[1]]
+        else:
+            ax = ax or self._last_ax or self._subplot_number(0)
+        if pars is not None and ax is not None:
+            ax.getdist_pars = pars
+        return ax
+
     def _subplot(self, x, y, pars=None, **kwargs):
         """
         Create a subplot with given parameters.
@@ -2037,6 +2075,7 @@ class GetDistPlotter(_BaseObject):
         self.subplots[y, x] = ax = self.fig.add_subplot(self.gridspec[y, x], **kwargs)
         if pars is not None:
             ax.getdist_params = pars
+        self._last_ax = ax
         return ax
 
     def _subplot_number(self, i, pars=None, **kwargs):
@@ -2421,23 +2460,23 @@ class GetDistPlotter(_BaseObject):
         """
         Rotates the x-tick labels by given rotation (degrees)
 
-        :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param rotation: How much to rotate in degrees.
         :param labelsize: size for tick labels (default from settings.axes_fontsize)
         """
-        ax = ax or plt.gca()
-        self._set_axis_properties(ax.xaxis, rotation, labelsize)
+        self._set_axis_properties(self.get_axes(ax).xaxis, rotation, labelsize)
 
     def rotate_yticklabels(self, ax=None, rotation=90, labelsize=None):
         """
         Rotates the y-tick labels by given rotation (degrees)
 
-        :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param rotation: How much to rotate in degrees.
         :param labelsize: size for tick labels (default from settings.axes_fontsize)
         """
-        ax = ax or plt.gca()
-        self._set_axis_properties(ax.yaxis, rotation, labelsize)
+        self._set_axis_properties(self.get_axes(ax).yaxis, rotation, labelsize)
 
     def add_colorbar(self, param, orientation='vertical', mappable=None, ax=None, **ax_args):
         """
@@ -2452,9 +2491,9 @@ class GetDistPlotter(_BaseObject):
                **color_label_in_axes** - if True, label is not added (insert as text label in plot instead)
         :return: The new :class:`~matplotlib:matplotlib.colorbar.Colorbar` instance
         """
-        cb = self.fig.colorbar(mappable, orientation=orientation, ax=ax)
+        cb = self.fig.colorbar(mappable, orientation=orientation, ax=self.get_axes(ax))
         cb.set_alpha(1)
-        cb.draw_all()
+        # cb.draw_all()
         if not ax_args.get('color_label_in_axes'):
             self.add_colorbar_label(cb, param)
         self._set_axis_properties(cb.ax.yaxis if orientation == 'vertical' else cb.ax.xaxis,
@@ -2471,14 +2510,15 @@ class GetDistPlotter(_BaseObject):
         :param zorder: Z-order for Line2D
         :param color: The color of the line, uses settings.axis_marker_color by default
         :param ls: The line style to be used, uses settings.axis_marker_ls by default
-        :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param kwargs:  Additional arguments for :class:`~matplotlib:matplotlib.lines.Line2D`
         """
         if color is None:
             color = self.settings.axis_marker_color
         if ls is None:
             ls = self.settings.axis_marker_ls
-        (ax or plt.gca()).add_line(plt.Line2D(xdata, ydata, color=color, ls=ls, zorder=zorder, **kwargs))
+        self.get_axes(ax).add_line(plt.Line2D(xdata, ydata, color=color, ls=ls, zorder=zorder, **kwargs))
 
     def add_colorbar_label(self, cb, param, label_rotation=None):
         """
@@ -2517,7 +2557,8 @@ class GetDistPlotter(_BaseObject):
         :param alpha: The alpha to use.
         :param extra_thin: thin the weight one samples by this additional factor before plotting
         :param scatter_size: point size (default: settings.scatter_size)
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :return: (xmin, xmax), (ymin, ymax) bounds for the axes.
         """
 
@@ -2536,10 +2577,12 @@ class GetDistPlotter(_BaseObject):
         :param extra_thin: thin the weight one samples by this additional factor before plotting
         :param scatter_size: point size (default: settings.scatter_size)
         :param alpha_samples: use all samples, giving each point alpha corresponding to relative weight
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance to add to (defaults to current plot)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param kwargs: arguments for :func:`~GetDistPlotter.add_colorbar`
         :return: (xmin, xmax), (ymin, ymax) bounds for the axes.
         """
+        ax = self.get_axes(ax)
         params = self.get_param_array(root, params)
         if alpha_samples:
             mcsamples = self.sample_analyser.samples_for_root(root)
@@ -2582,18 +2625,16 @@ class GetDistPlotter(_BaseObject):
             cols[:, 3] = weights / dup_fac * alpha
             alpha = None
             self.last_scatter = mappable
-            scat = (ax or plt.gca()).scatter(x, y, edgecolors='none', s=scatter_size or self.settings.scatter_size,
-                                             c=cols, alpha=alpha)
+            ax.scatter(x, y, edgecolors='none', s=scatter_size or self.settings.scatter_size,
+                       c=cols, alpha=alpha)
         else:
             if extra_thin > 1:
                 samples = [pts[::extra_thin] for pts in samples]
-            self.last_scatter = scat = (ax or plt.gca()).scatter(samples[0], samples[1], edgecolors='none',
-                                                                 s=scatter_size or self.settings.scatter_size,
-                                                                 c=fixed_color or samples[2],
-                                                                 cmap=self.settings.colormap_scatter, alpha=alpha)
+            self.last_scatter = ax.scatter(samples[0], samples[1], edgecolors='none',
+                                           s=scatter_size or self.settings.scatter_size,
+                                           c=fixed_color or samples[2],
+                                           cmap=self.settings.colormap_scatter, alpha=alpha)
 
-        if not ax:
-            plt.sci(scat)
         if color_bar and not fixed_color:
             self.last_colorbar = self.add_colorbar(params[2], mappable=self.last_scatter, ax=ax, **kwargs)
         xbounds = [min(samples[0]), max(samples[0])]
@@ -2650,7 +2691,8 @@ class GetDistPlotter(_BaseObject):
         :param add_legend_proxy: True if should add a legend proxy
         :param alpha_samples: if True, use alternative scatter style where all samples are plotted alphaed by
                               their weights
-        :param ax: axes to add to use (defaults to current, generated if needed)
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param kwargs: additional optional arguments:
 
                 * **filled**: True for filled contours for second and later items in roots
@@ -2682,7 +2724,7 @@ class GetDistPlotter(_BaseObject):
             params_for_plots = [params for _ in roots]  # all the same
         if self.fig is None:
             self.make_figure()
-        ax = ax or self._subplot_number(0, pars=params_for_plots[0])
+        ax = self.get_axes(ax, pars=params_for_plots[0])
         contour_args = self._make_contour_args(len(roots) - 1, **kwargs)
         xlims, ylims = self.add_3d_scatter(roots[0], params_for_plots[0], color_bar=color_bar,
                                            alpha_samples=alpha_samples, ax=ax, **kwargs)
@@ -2757,19 +2799,14 @@ class GetDistPlotter(_BaseObject):
         :param text_label: The label to add.
         :param x: The x coordinate of where to add the label
         :param y: The y coordinate of where to add the label.
-        :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use,
-                   index or [y,x] coordinate of subplot to use, or default to current axes.
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param kwargs: keyword arguments for :func:`~matplotlib:matplotlib.pyplot.text`
         """
         args = {'horizontalalignment': 'right' if x > 0.5 else 'left', 'verticalalignment': 'center',
                 'fontsize': self._scaled_fontsize(self.settings.fontsize)}
         args.update(kwargs)
-        if isinstance(ax, int):
-            ax = self.fig.axes[ax]
-        if isinstance(ax, (list, tuple)):
-            ax = self.subplots[ax[0], ax[1]]
-        else:
-            ax = ax or plt.gca()
+        ax = self.get_axes(ax)
         ax.text(x, y, text_label, transform=ax.transAxes, **args)
 
     def add_text_left(self, text_label, x=0.05, y=0.06, ax=None, **kwargs):
@@ -2779,7 +2816,8 @@ class GetDistPlotter(_BaseObject):
         :param text_label: The label to add.
         :param x: The x coordinate of where to add the label
         :param y: The y coordinate of where to add the label.
-        :param ax: the :class:`~matplotlib:matplotlib.axes.Axes` instance to use, defaults to current axes.
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot to first plot if none)
         :param kwargs: keyword arguments for :func:`~matplotlib:matplotlib.pyplot.text`
         """
         args = {'horizontalalignment': 'left'}
