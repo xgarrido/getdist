@@ -470,7 +470,8 @@ class RandomTestMixtureND(MixtureND):
         :param seed:  random seed
         :param label: label for the generated mixture
         """
-        if seed: np.random.seed(seed)
+        if seed:
+            np.random.seed(seed)
         covs = []
         for _ in range(ncomponent):
             A = np.random.rand(ndim, ndim)

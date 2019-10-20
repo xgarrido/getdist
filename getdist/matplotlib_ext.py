@@ -244,6 +244,9 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                         else:
                             best_vmin += low
 
+                    sc = 10 ** (math.log10(step) // 1)
+                    step_int = round(step / sc)
+
                     low = _ge(_vmin - best_vmin, offset, step)
                     high = _le(_vmax - best_vmin, offset, step)
                     if min_ticks <= high - low + 1 <= nbins:
@@ -251,8 +254,7 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
 
                         if off and round_center and changing_lengths:
                             # If no nice number, see if we can shift points to get one
-                            sc = 10 ** (math.log10(step) // 1)
-                            if step > 2*sc:
+                            if step > 2 * sc:
                                 for shift in [0, -1, 1, -2, 2]:
                                     if abs(shift * sc) >= step / 2:
                                         break
@@ -269,9 +271,9 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                                                                                            label_len * 1.1) or
                                                            self._range[1] - ticks[-1] > max(min(_full_range / 3, step),
                                                                                             label_len * 1.1)))
-                                                      or not self.bounded_prune and step_ix and
-                                                      len(ticks) == 3 and step > max(2 * label_len, _full_range / 3)
-                                                      )
+                                                      or not self.bounded_prune and len(ticks) == 3 and
+                                                      step > max(2 * label_len, _full_range / 3)
+                                                      and step_int > 1 and round(ticks[-1] / sc) % 10 > 0)
 
                         close_ticks = step < label_len * 1.3 and len(ticks) > 2
                         if (big_step and odd_gaps or close_ticks) and no_more_ticks:

@@ -9,7 +9,7 @@ import subprocess
 from getdist import loadMCSamples, plots, IniFile
 from getdist.tests.test_distributions import Test2DDistributions, Gaussian1D, Gaussian2D
 from getdist.mcsamples import MCSamples
-import pylab as plt
+import matplotlib.pyplot as plt
 
 
 class GetDistFileTest(unittest.TestCase):
@@ -258,6 +258,19 @@ class UtilTest(unittest.TestCase):
     def test_one_locator(self):
         self._plot_with_params(0.01, 1, 0.05, True)
         plt.draw()
+
+    def test_specifics(self):
+        testdists = Test2DDistributions()
+        samples = testdists.bimodal[0].MCSamples(1000, logLikes=True)
+        g = plots.get_subplot_plotter(auto_close=True)
+        g.prob_label = r'$P$'
+        g.prob_y_ticks = True
+        g.plot_1d(samples, 'x')
+        plt.xlim([-5.2, 5.2])
+        self.assertTrue(np.allclose(g.get_axes().get_yticks(), [0, 0.5, 1]))
+        self.assertTrue(np.allclose(g.get_axes().get_xticks(), [-4, -2, 0, 2, 4]))
+        plt.xlim([0, 8.2])
+        print(g.get_axes().get_xticks())
 
     def test_locator(self):
         import matplotlib.backends.backend_pdf

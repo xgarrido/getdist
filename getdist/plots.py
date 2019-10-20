@@ -13,6 +13,7 @@ import matplotlib.patches
 import matplotlib.colors
 import matplotlib.gridspec
 import matplotlib.axis
+import matplotlib.lines
 from matplotlib import cm, rcParams
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
@@ -1037,7 +1038,7 @@ class GetDistPlotter(_BaseObject):
             cs = ax.contourf(density.x, density.y, density.P, levels, colors=cols, alpha=alpha, **clean_args(kwargs))
             if proxy_ix >= 0:
                 self.contours_added[proxy_ix] = (
-                    plt.Rectangle((0, 0), 1, 1, fc=matplotlib.colors.to_rgb(cs.tcolors[-1][0])))
+                    matplotlib.patches.Rectangle((0, 0), 1, 1, fc=matplotlib.colors.to_rgb(cs.tcolors[-1][0])))
             ax.contour(density.x, density.y, density.P, levels[:1], colors=cs.tcolors[-1],
                        linewidths=self._scaled_linewidth(self.settings.linewidth_contour),
                        alpha=alpha * self.settings.alpha_factor_contour_lines, **clean_args(kwargs))
@@ -1055,8 +1056,8 @@ class GetDistPlotter(_BaseObject):
                 for c in cs.collections:
                     c.set_dashes([(0, dashes)])
             if proxy_ix >= 0:
-                line = plt.Line2D([0, 1], [0, 1], ls=linestyles[0], lw=lws, color=cols[0],
-                                  alpha=args.get('alpha'))
+                line = matplotlib.lines.Line2D([0, 1], [0, 1], ls=linestyles[0], lw=lws, color=cols[0],
+                                               alpha=args.get('alpha'))
                 if dashes:
                     line.set_dashes(dashes)
                 self.contours_added[proxy_ix] = line
@@ -1629,7 +1630,7 @@ class GetDistPlotter(_BaseObject):
             self.fig = plt.figure(figsize=figsize, constrained_layout=True)
         else:
             self.fig = plt.figure(figsize=figsize)
-        self.gridspec = plt.GridSpec(nrows=self.plot_row, ncols=self.plot_col, figure=self.fig)
+        self.gridspec = matplotlib.gridspec.GridSpec(nrows=self.plot_row, ncols=self.plot_col, figure=self.fig)
 
         if sharey:
             self._share_kwargs = {'w_pad': 0, 'wspace': 0}
@@ -1763,7 +1764,7 @@ class GetDistPlotter(_BaseObject):
             for i in enumerate(legend_labels):
                 args = self.lines_added.get(i[0]) or self._get_line_styles(i[0] + line_offset)
                 args.pop('filled', None)
-                lines.append(plt.Line2D([0, 1], [0, 1], **args))
+                lines.append(matplotlib.lines.Line2D([0, 1], [0, 1], **args))
         else:
             lines = self.contours_added
         args = kwargs.copy()
@@ -1820,7 +1821,7 @@ class GetDistPlotter(_BaseObject):
         if colored_text:
             for h, text in zip(self.legend.legendHandles, self.legend.get_texts()):
                 h.set_visible(False)
-                if isinstance(h, plt.Line2D):
+                if isinstance(h, matplotlib.lines.Line2D):
                     c = h.get_color()
                 elif isinstance(h, matplotlib.patches.Patch):
                     c = h.get_facecolor()
@@ -2518,7 +2519,7 @@ class GetDistPlotter(_BaseObject):
             color = self.settings.axis_marker_color
         if ls is None:
             ls = self.settings.axis_marker_ls
-        self.get_axes(ax).add_line(plt.Line2D(xdata, ydata, color=color, ls=ls, zorder=zorder, **kwargs))
+        self.get_axes(ax).add_line(matplotlib.lines.Line2D(xdata, ydata, color=color, ls=ls, zorder=zorder, **kwargs))
 
     def add_colorbar_label(self, cb, param, label_rotation=None):
         """
