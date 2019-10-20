@@ -24,8 +24,7 @@ You can also use glob patterns to match specific subsets of parameters (e.g. *x\
 
 .. automodule:: getdist.plots
    :members:
-   :exclude-members: makeList
-
+   :exclude-members: makeList, getSinglePlotter, getSubplotPlotter, getPlotter, RootInfo
 
 
 

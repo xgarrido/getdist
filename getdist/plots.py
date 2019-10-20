@@ -620,12 +620,12 @@ class MCSampleAnalysis(_BaseObject):
 
     def bounds_for_root(self, root):
         """
-        Returns an object with getUpper and getLower to get hard prior bounds for given root name
+        Returns an object with get_upper/getUpper and get_lower/getLower to get hard prior bounds for given root name
 
         :param root: The root name to use.
-        :return: object with getUpper() and getLower() functions
+        :return: object with get_upper() or getUpper() and get_lower() or getLower() functions
         """
-        if hasattr(root, 'getUpper'):
+        if hasattr(root, 'get_upper') or hasattr(root, 'getUpper'):
             return root
         else:
             return self.samples_for_root(root)  # defines getUpper and getLower, all that's needed
@@ -850,7 +850,7 @@ class GetDistPlotter(_BaseObject):
         Get any hard prior bounds for the parameters with root file name
 
         :param root: The root name to be used
-        :return: object with getUpper() and getLower() bounds functions
+        :return: object with get_upper() or getUpper() and get_lower() or getLower() bounds functions
         """
         if root not in self.param_bounds_sets:
             self.param_bounds_sets[root] = self.sample_analyser.bounds_for_root(root)
@@ -1862,12 +1862,14 @@ class GetDistPlotter(_BaseObject):
         self._subplots_adjust()
 
     def _root_display_name(self, root, i):
-        if hasattr(root, 'get_kabel'):
+        if hasattr(root, 'get_label'):
             root = root.get_label()
         elif hasattr(root, 'getLabel'):
             root = root.getLabel()
         elif hasattr(root, 'label'):
             root = root.label
+        elif hasattr(root, 'get_name'):
+            root = escapeLatex(root.get_name())
         elif hasattr(root, 'getName'):
             root = escapeLatex(root.getName())
         elif isinstance(root, six.string_types):
@@ -2227,7 +2229,6 @@ class GetDistPlotter(_BaseObject):
             label_ax.yaxis.tick_left()
             label_ax.yaxis.set_label_position('left')
             label_ax.yaxis.set_offset_position('left')
-            # label_ax.get_shared_y_axes().join(label_ax, self.subplots[0, 1])
             label_ax.set_ylim(lims[0])
             self.set_ylabel(params[0], ax=label_ax)
             self._set_main_axis_properties(label_ax.yaxis, False)
