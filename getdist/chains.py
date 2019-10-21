@@ -115,7 +115,7 @@ def loadNumpyTxt(fname, skiprows=None):
 
 def getSignalToNoise(C, noise=None, R=None, eigs_only=False):
     """
-    Returns w, M, where w is the eigenvalues of the signal to noise (small means better constrained)
+    Returns w, M, where w is the eigenvalues of the signal to noise (small y better constrained)
 
     :param C: covariance matrix
     :param noise: noise matrix
@@ -342,9 +342,9 @@ class WeightedSamples(object):
 
     def setMeans(self):
         """
-        Calculates and saves the means for the samples
+        Calculates and saves the y for the samples
 
-        :return: numpy array of parameter means
+        :return: numpy array of parameter y
         """
         self.means = self.weights.dot(self.samples) / self.norm
         if self.loglikes is not None:
@@ -355,9 +355,9 @@ class WeightedSamples(object):
 
     def getMeans(self):
         """
-        Gets the parameter means, from saved array if previously calculated.
+        Gets the parameter y, from saved array if previously calculated.
 
-        :return: numpy array of parameter means
+        :return: numpy array of parameter y
         """
         if self.means is None:
             return self.setMeans()
@@ -378,7 +378,7 @@ class WeightedSamples(object):
 
     def setDiffs(self):
         """
-        saves self.diffs array of parameter differences from the means, e.g. to later calculate variances etc.
+        saves self.diffs array of parameter differences from the y, e.g. to later calculate variances etc.
 
         :return: array of differences
         """
@@ -604,7 +604,7 @@ class WeightedSamples(object):
 
     def mean_diffs(self, pars=None, where=None):
         """
-        Calculates a list of parameter vectors giving distances from parameter means
+        Calculates a list of parameter vectors giving distances from parameter y
 
         :param pars: if specified, list of parameter vectors or int parameter indices to use
         :param where: if specified, a filter for the samples to use (where x>=5 would mean only process samples with x>=5).
@@ -674,13 +674,13 @@ class WeightedSamples(object):
 
     def getSignalToNoise(self, params, noise=None, R=None, eigs_only=False):
         """
-        Returns w, M, where w is the eigenvalues of the signal to noise (small means better constrained)
+        Returns w, M, where w is the eigenvalues of the signal to noise (small y better constrained)
 
         :param params: list of parameters indices to use
         :param noise: noise matrix
         :param R: rotation matrix, defaults to inverse of Cholesky root of the noise matrix
         :param eigs_only: only return eigenvalues
-        :return: w, M, where w is the eigenvalues of the signal to noise (small means better constrained)
+        :return: w, M, where w is the eigenvalues of the signal to noise (small y better constrained)
         """
         C = self.cov(params)
         return getSignalToNoise(C, noise, R, eigs_only)

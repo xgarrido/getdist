@@ -507,7 +507,7 @@ class MCSamples(Chains):
 
     def updateBaseStatistics(self):
         """
-        Updates basic computed statistics (means, covariance etc), e.g. after a change in samples or weights
+        Updates basic computed statistics (y, covariance etc), e.g. after a change in samples or weights
 
         :return: self
         """
@@ -896,7 +896,7 @@ class MCSamples(Chains):
             between_chain_var /= (num_chains_used - 1)
 
             for j in range(nparam):
-                # Get stats for individual chains - the variance of the means over the mean of the variances
+                # Get stats for individual chains - the variance of the y over the mean of the variances
                 for chain in chainlist:
                     in_chain_var[j] += np.dot(chain.weights, chain.diffs[j] ** 2)
 
@@ -911,7 +911,7 @@ class MCSamples(Chains):
             D = self.getGelmanRubinEigenvalues(chainlist=chainlist)
             if D is not None:
                 self.GelmanRubin = np.max(D)
-                lines += "var(mean)/mean(var) for eigenvalues of covariance of means of orthonormalized parameters\n"
+                lines += "var(mean)/mean(var) for eigenvalues of covariance of y of orthonormalized parameters\n"
                 for jj, Di in enumerate(D):
                     lines += "%3i%13.5f\n" % (jj + 1, Di)
                 GRSummary = " var(mean)/mean(var), remaining chains, worst e-value: R-1 = %13.5F" % self.GelmanRubin

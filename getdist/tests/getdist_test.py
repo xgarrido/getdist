@@ -237,6 +237,9 @@ class GetDistTest(unittest.TestCase):
         g.plot_2d(samples, 'x', 'y', filled=True)
         g.add_y_bands(0.2, 1.5)
         g.add_x_bands(-0.1, 1.2, color='red')
+        g.new_plot()
+        omm = np.arange(0.1, 0.7, 0.01)
+        g.add_bands(omm, 0.589 * omm ** (-0.25), 0.03 * omm ** (-0.25), nbands=3)
 
 
 class UtilTest(unittest.TestCase):

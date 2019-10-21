@@ -893,7 +893,7 @@ class GetDistPlotter(_BaseObject):
         :param normalized: True if areas under lines should match, False if normalized to unit maximum.
                            Default from settings.norm_1d_density.
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param title_limit:if not None, a maginalized limit (1,2..) to print as the title of the plot
         :param kwargs: arguments for :func:`~matplotlib:matplotlib.pyplot.plot`
         :return: min, max for the plotted density
@@ -976,7 +976,7 @@ class GetDistPlotter(_BaseObject):
                         from the samples
         :param alpha: alpha for the contours added
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param kwargs: optional keyword arguments:
 
                - **filled**: True to make filled contours
@@ -1075,7 +1075,7 @@ class GetDistPlotter(_BaseObject):
         :param density: optional user-provided :class:`~.densities.Density2D` to plot rather than
                         the auto-generated density from the samples
          :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param kwargs: keyword arguments for :func:`~matplotlib:matplotlib.pyplot.contourf`
         """
         param1, param2 = self.get_param_array(root, [param1, param2])
@@ -1111,7 +1111,7 @@ class GetDistPlotter(_BaseObject):
         Plot 2D Gaussian ellipse. By default plots contours for 1 and 2 sigma.
         Specify contour_levels argument to plot other contours (for density normalized to peak at unity).
 
-        :param means: array of means
+        :param means: array of y
         :param cov: the 2x2 covariance
         :param xvals: optional array of x values to evaluate at
         :param yvals: optional array of y values to evaluate at
@@ -1138,6 +1138,131 @@ class GetDistPlotter(_BaseObject):
     def add_2d_mixture_projection(self, mixture, param1, param2, **kwargs):
         density = mixture.marginalizedMixture(params=[param1, param2]).density2D()
         return self.add_2d_density_contours(density, **kwargs)
+
+    def add_x_marker(self, marker, color=None, ls=None, lw=None, ax=None, **kwargs):
+        """
+        Adds a vertical line marking some x value. Optional arguments can override default settings.
+
+        :param marker: The x coordinate of the location the marker line
+        :param color: optional color of the marker
+        :param ls: optional line style of the marker
+        :param lw: optional line width
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot or the first/main plot if none)
+        :param kwargs: additional arguments to pass to :func:`~matplotlib:matplotlib.pyplot.axvline`
+        """
+        if color is None:
+            color = self.settings.axis_marker_color
+        if ls is None:
+            ls = self.settings.axis_marker_ls
+        if lw is None:
+            lw = self.settings.axis_marker_lw
+        self.get_axes(ax).axvline(marker, ls=ls, color=color, lw=lw, **kwargs)
+
+    def add_y_marker(self, marker, color=None, ls=None, lw=None, ax=None, **kwargs):
+        """
+        Adds a horizontal line marking some y value. Optional arguments can override default settings.
+
+        :param marker: The y coordinate of the location the marker line
+        :param color: optional color of the marker
+        :param ls: optional line style of the marker
+        :param lw: optional line width.
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot or the first/main plot if none)
+        :param kwargs: additional arguments to pass to :func:`~matplotlib:matplotlib.pyplot.axhline`
+        """
+        if color is None:
+            color = self.settings.axis_marker_color
+        if ls is None:
+            ls = self.settings.axis_marker_ls
+        if lw is None:
+            lw = self.settings.axis_marker_lw
+        self.get_axes(ax).axhline(marker, ls=ls, color=color, lw=lw, **kwargs)
+
+    def add_x_bands(self, x, sigma, color='gray', ax=None, alpha1=0.15, alpha2=0.1, **kwargs):
+        """
+        Adds vertical shaded bands showing one and two sigma ranges.
+
+        :param x: central x value for bands
+        :param sigma: 1 sigma error on x
+        :param color: The base color to use
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot or the first/main plot if none)
+        :param alpha1: alpha for the 1 sigma band; note this is drawn on top of the 2 sigma band. Set to zero if you
+                       only want 2 sigma band
+        :param alpha2: alpha for the 2 sigma band. Set to zero if you only want 1 sigma band
+        :param kwargs: optional keyword arguments for :func:`~matplotlib:matplotlib.pyplot.axvspan`
+
+        .. plot::
+           :include-source:
+
+            from getdist import plots, gaussian_mixtures
+            samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=2, nMCSamples=2)
+            g = plots.get_single_plotter(width_inch=4)
+            g.plot_2d([samples1, samples2], ['x0','x1'], filled=False);
+            g.add_x_bands(0, 1)
+        """
+        ax = self.get_axes(ax)
+        c = color
+        if alpha2 > 0:
+            ax.axvspan((x - sigma * 2), (x + sigma * 2), color=c, alpha=alpha2, **kwargs)
+        if alpha1 > 0:
+            ax.axvspan((x - sigma), (x + sigma), color=c, alpha=alpha1, **kwargs)
+
+    def add_y_bands(self, y, sigma, color='gray', ax=None, alpha1=0.15, alpha2=0.1, **kwargs):
+        """
+        Adds horizontal shaded bands showing one and two sigma ranges.
+
+        :param y: central y value for bands
+        :param sigma: 1 sigma error on y
+        :param color: The base color to use
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot or the first/main plot if none)
+        :param alpha1: alpha for the 1 sigma band; note this is drawn on top of the 2 sigma band. Set to zero if
+                       you only want 2 sigma band
+        :param alpha2: alpha for the 2 sigma band. Set to zero if you only want 1 sigma band
+        :param kwargs: optional keyword arguments for :func:`~matplotlib:matplotlib.pyplot.axhspan`
+
+        .. plot::
+           :include-source:
+
+            from getdist import plots, gaussian_mixtures
+            samples= gaussian_mixtures.randomTestMCSamples(ndim=2, nMCSamples=1)
+            g = plots.get_single_plotter(width_inch=4)
+            g.plot_2d(samples, ['x0','x1'], filled=True);
+            g.add_y_bands(0, 1)
+        """
+        ax = self.get_axes(ax)
+        c = color
+        if alpha2 > 0:
+            ax.axhspan((y - sigma * 2), (y + sigma * 2), color=c, alpha=alpha2, **kwargs)
+        if alpha1 > 0:
+            ax.axhspan((y - sigma), (y + sigma), color=c, alpha=alpha1, **kwargs)
+
+    def add_bands(self, x, y, errors, color='gray', nbands=2, alphas=(0.25, 0.15, 0.1), lw=0.2,
+                  lw_center=None, linecolor='k', ax=None):
+        """
+        Add a constraint band as a function of x showing e.g. a 1 and 2 sigma range.
+
+        :param x: array of x values
+        :param y: array of central values for the band as function of x
+        :param errors: array of errors as a function of x
+        :param color: a fill color
+        :param nbands: number of bands to plot. If errors are 1 sigma, using nbands=2 will plot 1 and 2 sigma.
+        :param alphas: tuple of alpha factors to use for each error band
+        :param lw: linewidth for the edges of the bands
+        :param lw_center: linewidth for the central mean line (zero or None not to have one, the default)
+        :param linecolor: a line color for central line
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot or the first/main plot if none)
+        """
+        ax = self.get_axes(ax)
+        if np.isscalar(y):
+            y = np.ones(len(x)) * y
+        for i in reversed(range(nbands)):
+            ax.fill_between(x, y - (i + 1) * errors, y + (i + 1) * errors, color=color, alpha=alphas[i], lw=lw)
+        if lw_center:
+            ax.plot(x, y, color=linecolor or color, lw=lw_center)
 
     def _update_limit(self, bounds, curbounds):
         """
@@ -1219,172 +1344,6 @@ class GetDistPlotter(_BaseObject):
                 cont['filled'] = filled or False
         return contour_args
 
-    def plot_2d(self, roots, param1=None, param2=None, param_pair=None, shaded=False,
-                add_legend_proxy=True, line_offset=0, proxy_root_exclude=[], ax=None, **kwargs):
-        """
-        Create a single 2D line, contour or filled plot.
-
-        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for
-                      the samples to plot
-        :param param1: x parameter name
-        :param param2:  y parameter name
-        :param param_pair: An [x,y] pair of params; can be set instead of param1 and param2
-        :param shaded: True if plot should be a shaded density plot (for the first samples plotted)
-        :param add_legend_proxy: True if should add to the legend proxy
-        :param line_offset: line_offset if not adding first contours to plot
-        :param proxy_root_exclude: any root names not to include when adding to the legend proxy
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
-        :param kwargs: additional optional arguments:
-
-                * **filled**: True for filled contours
-                * **lims**: list of limits for the plot [xmin, xmax, ymin, ymax]
-                * **ls** : list of line styles for the different sample contours plotted
-                * **colors**: list of colors for the different sample contours plotted
-                * **lws**: list of line widths for the different sample contours plotted
-                * **alphas**: list of alphas for the different sample contours plotted
-                * **line_args**: a list of dictionaries with settings for each set of contours
-                * arguments for :func:`~GetDistPlotter.set_axes`
-        :return: The xbounds, ybounds of the plot.
-
-        .. plot::
-           :include-source:
-
-            from getdist import plots, gaussian_mixtures
-            samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=4, nMCSamples=2)
-            g = plots.get_single_plotter(width_inch = 4)
-            g.plot_2d([samples1,samples2], 'x1', 'x2', filled=True);
-
-        """
-        if self.fig is None:
-            self.make_figure()
-        roots = makeList(roots)
-        if isinstance(param1, (list, tuple)):
-            param_pair = param1
-            param1 = None
-        param_pair = self.get_param_array(roots[0], param_pair or [param1, param2])
-        ax = self.get_axes(ax, pars=param_pair)
-        if self.settings.progress:
-            print('plotting: ', [param.name for param in param_pair])
-        if shaded and not kwargs.get('filled'):
-            self.add_2d_shading(roots[0], param_pair[0], param_pair[1], ax=ax)
-        xbounds, ybounds = None, None
-        contour_args = self._make_contour_args(len(roots), **kwargs)
-        for i, root in enumerate(roots):
-            res = self.add_2d_contours(root, param_pair[0], param_pair[1], line_offset + i, of=len(roots), ax=ax,
-                                       add_legend_proxy=add_legend_proxy and root not in proxy_root_exclude,
-                                       **contour_args[i])
-            xbounds, ybounds = self._update_limits(res, xbounds, ybounds)
-        if xbounds is None:
-            return
-        if 'lims' not in kwargs:
-            lim1 = self._check_param_ranges(roots[0], param_pair[0].name, xbounds[0], xbounds[1])
-            lim2 = self._check_param_ranges(roots[0], param_pair[1].name, ybounds[0], ybounds[1])
-            kwargs['lims'] = [lim1[0], lim1[1], lim2[0], lim2[1]]
-
-        self.set_axes(param_pair, ax=ax, **kwargs)
-        return xbounds, ybounds
-
-    def add_x_marker(self, marker, color=None, ls=None, lw=None, ax=None, **kwargs):
-        """
-        Adds a vertical line marking some x value. Optional arguments can override default settings.
-
-        :param marker: The x coordinate of the location the marker line
-        :param color: optional color of the marker
-        :param ls: optional line style of the marker
-        :param lw: optional line width
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
-        :param kwargs: additional arguments to pass to :func:`~matplotlib:matplotlib.pyplot.axvline`
-        """
-        if color is None:
-            color = self.settings.axis_marker_color
-        if ls is None:
-            ls = self.settings.axis_marker_ls
-        if lw is None:
-            lw = self.settings.axis_marker_lw
-        self.get_axes(ax).axvline(marker, ls=ls, color=color, lw=lw, **kwargs)
-
-    def add_y_marker(self, marker, color=None, ls=None, lw=None, ax=None, **kwargs):
-        """
-        Adds a horizontal line marking some y value. Optional arguments can override default settings.
-
-        :param marker: The y coordinate of the location the marker line
-        :param color: optional color of the marker
-        :param ls: optional line style of the marker
-        :param lw: optional line width.
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
-        :param kwargs: additional arguments to pass to :func:`~matplotlib:matplotlib.pyplot.axhline`
-        """
-        if color is None:
-            color = self.settings.axis_marker_color
-        if ls is None:
-            ls = self.settings.axis_marker_ls
-        if lw is None:
-            lw = self.settings.axis_marker_lw
-        self.get_axes(ax).axhline(marker, ls=ls, color=color, lw=lw, **kwargs)
-
-    def add_x_bands(self, x, sigma, color='gray', ax=None, alpha1=0.15, alpha2=0.1, **kwargs):
-        """
-        Adds vertical shaded bands showing one and two sigma ranges.
-
-        :param x: central x value for bands
-        :param sigma: 1 sigma error on x
-        :param color: The base color to use
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
-        :param alpha1: alpha for the 1 sigma band; note this is drawn on top of the 2 sigma band. Set to zero if you
-                       only want 2 sigma band
-        :param alpha2: alpha for the 2 sigma band. Set to zero if you only want 1 sigma band
-        :param kwargs: optional keyword arguments for :func:`~matplotlib:matplotlib.pyplot.axvspan`
-
-        .. plot::
-           :include-source:
-
-            from getdist import plots, gaussian_mixtures
-            samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=2, nMCSamples=2)
-            g = plots.get_single_plotter(width_inch=4)
-            g.plot_2d([samples1, samples2], ['x0','x1'], filled=False);
-            g.add_x_bands(0, 1)
-        """
-        ax = self.get_axes(ax)
-        c = color
-        if alpha2 > 0:
-            ax.axvspan((x - sigma * 2), (x + sigma * 2), color=c, alpha=alpha2, **kwargs)
-        if alpha1 > 0:
-            ax.axvspan((x - sigma), (x + sigma), color=c, alpha=alpha1, **kwargs)
-
-    def add_y_bands(self, y, sigma, color='gray', ax=None, alpha1=0.15, alpha2=0.1, **kwargs):
-        """
-        Adds horizontal shaded bands showing one and two sigma ranges.
-
-        :param y: central y value for bands
-        :param sigma: 1 sigma error on y
-        :param color: The base color to use
-        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
-        :param alpha1: alpha for the 1 sigma band; note this is drawn on top of the 2 sigma band. Set to zero if
-                       you only want 2 sigma band
-        :param alpha2: alpha for the 2 sigma band. Set to zero if you only want 1 sigma band
-        :param kwargs: optional keyword arguments for :func:`~matplotlib:matplotlib.pyplot.axhspan`
-
-        .. plot::
-           :include-source:
-
-            from getdist import plots, gaussian_mixtures
-            samples= gaussian_mixtures.randomTestMCSamples(ndim=2, nMCSamples=1)
-            g = plots.get_single_plotter(width_inch=4)
-            g.plot_2d(samples, ['x0','x1'], filled=True);
-            g.add_y_bands(0, 1)
-        """
-        ax = self.get_axes(ax)
-        c = color
-        if alpha2 > 0:
-            ax.axhspan((y - sigma * 2), (y + sigma * 2), color=c, alpha=alpha2, **kwargs)
-        if alpha1 > 0:
-            ax.axhspan((y - sigma), (y + sigma), color=c, alpha=alpha1, **kwargs)
-
     def _set_axis_formatter(self, axis, x):
         power_limits = self.settings.axis_tick_powerlimits
         if not x:
@@ -1431,7 +1390,7 @@ class GetDistPlotter(_BaseObject):
         ax.tick_params(labelleft=False)
         ax.yaxis.offsetText.set_visible(False)
 
-    def set_axes(self, params=[], lims=None, do_xlabel=True, do_ylabel=True, no_label_no_numbers=False, pos=None,
+    def set_axes(self, params=(), lims=None, do_xlabel=True, do_ylabel=True, no_label_no_numbers=False, pos=None,
                  color_label_in_axes=False, ax=None, **other_args):
         """
         Set the axis labels and ticks, and various styles. Do not usually need to call this directly.
@@ -1445,7 +1404,7 @@ class GetDistPlotter(_BaseObject):
         :param color_label_in_axes: If True, and params has at last three entries, puts text in the axis to label
                                     the third parameter
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param other_args: Not used, just quietly ignore so that set_axes can be passed general kwargs
         :return: an :class:`~matplotlib:matplotlib.axes.Axes` instance
         """
@@ -1477,7 +1436,7 @@ class GetDistPlotter(_BaseObject):
 
         :param param: the :class:`~.paramnames.ParamInfo` for the x axis parameter
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         """
         ax = self.get_axes(ax)
         lab_fontsize = self._scaled_fontsize(self.settings.axes_labelsize)
@@ -1490,7 +1449,7 @@ class GetDistPlotter(_BaseObject):
 
         :param param: the :class:`~.paramnames.ParamInfo` for the y axis parameter
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         """
         ax = self.get_axes(ax)
         ax.set_ylabel(param.latexLabel(), fontsize=self._scaled_fontsize(self.settings.axes_labelsize))
@@ -1513,7 +1472,7 @@ class GetDistPlotter(_BaseObject):
         :param normalized: plot normalized densities (if False, densities normalized to peak at 1)
         :param param_renames: optional dictionary mapping input parameter names to equivalent names used by the samples
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param kwargs: additional optional keyword arguments:
 
                 * **lims**: optional limits for x range of the plot [xmin, xmax]
@@ -1542,8 +1501,6 @@ class GetDistPlotter(_BaseObject):
 
         """
         roots = makeList(roots)
-        if self.fig is None:
-            self.make_figure()
         ax = self.get_axes(ax, pars=(param,))
         plotparam = None
         plotroot = None
@@ -1595,6 +1552,70 @@ class GetDistPlotter(_BaseObject):
             ax.set_yticks(ticks[1:])
         if _ret_range:
             return xmin, xmax
+
+    def plot_2d(self, roots, param1=None, param2=None, param_pair=None, shaded=False,
+                add_legend_proxy=True, line_offset=0, proxy_root_exclude=(), ax=None, **kwargs):
+        """
+        Create a single 2D line, contour or filled plot.
+
+        :param roots: root name or :class:`~.mcsamples.MCSamples` instance (or list of any of either of these) for
+                      the samples to plot
+        :param param1: x parameter name
+        :param param2:  y parameter name
+        :param param_pair: An [x,y] pair of params; can be set instead of param1 and param2
+        :param shaded: True if plot should be a shaded density plot (for the first samples plotted)
+        :param add_legend_proxy: True if should add to the legend proxy
+        :param line_offset: line_offset if not adding first contours to plot
+        :param proxy_root_exclude: any root names not to include when adding to the legend proxy
+        :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
+                   to add to (defaults to current plot or the first/main plot if none)
+        :param kwargs: additional optional arguments:
+
+                * **filled**: True for filled contours
+                * **lims**: list of limits for the plot [xmin, xmax, ymin, ymax]
+                * **ls** : list of line styles for the different sample contours plotted
+                * **colors**: list of colors for the different sample contours plotted
+                * **lws**: list of line widths for the different sample contours plotted
+                * **alphas**: list of alphas for the different sample contours plotted
+                * **line_args**: a list of dictionaries with settings for each set of contours
+                * arguments for :func:`~GetDistPlotter.set_axes`
+        :return: The xbounds, ybounds of the plot.
+
+        .. plot::
+           :include-source:
+
+            from getdist import plots, gaussian_mixtures
+            samples1, samples2 = gaussian_mixtures.randomTestMCSamples(ndim=4, nMCSamples=2)
+            g = plots.get_single_plotter(width_inch = 4)
+            g.plot_2d([samples1,samples2], 'x1', 'x2', filled=True);
+
+        """
+        roots = makeList(roots)
+        if isinstance(param1, (list, tuple)):
+            param_pair = param1
+            param1 = None
+        param_pair = self.get_param_array(roots[0], param_pair or [param1, param2])
+        ax = self.get_axes(ax, pars=param_pair)
+        if self.settings.progress:
+            print('plotting: ', [param.name for param in param_pair])
+        if shaded and not kwargs.get('filled'):
+            self.add_2d_shading(roots[0], param_pair[0], param_pair[1], ax=ax)
+        xbounds, ybounds = None, None
+        contour_args = self._make_contour_args(len(roots), **kwargs)
+        for i, root in enumerate(roots):
+            res = self.add_2d_contours(root, param_pair[0], param_pair[1], line_offset + i, of=len(roots), ax=ax,
+                                       add_legend_proxy=add_legend_proxy and root not in proxy_root_exclude,
+                                       **contour_args[i])
+            xbounds, ybounds = self._update_limits(res, xbounds, ybounds)
+        if xbounds is None:
+            return
+        if 'lims' not in kwargs:
+            lim1 = self._check_param_ranges(roots[0], param_pair[0].name, xbounds[0], xbounds[1])
+            lim2 = self._check_param_ranges(roots[0], param_pair[1].name, ybounds[0], ybounds[1])
+            kwargs['lims'] = [lim1[0], lim1[1], lim2[0], lim2[1]]
+
+        self.set_axes(param_pair, ax=ax, **kwargs)
+        return xbounds, ybounds
 
     def make_figure(self, nplot=1, nx=None, ny=None, xstretch=1.0, ystretch=1.0, sharex=False, sharey=False):
         """
@@ -1928,7 +1949,8 @@ class GetDistPlotter(_BaseObject):
         :param share_y: True for subplots to share a common y axis with no horizontal space between subplots
         :param markers: optional dict giving vertical marker values indexed by parameter, or a list of marker values
                         for each parameter plotted
-        :param title_limit: if not None, a maginalized limit (1,2..) of the first root to print as the title of the plots
+        :param title_limit: if not None, a maginalized limit (1,2..) of the first root to print as the title
+                            of each of the plots
         :param xlims: list of [min,max] limits for the range of each parameter plot
         :param param_renames: optional dictionary holding mapping between input names and equivalent names used in
                               the samples.
@@ -2041,6 +2063,26 @@ class GetDistPlotter(_BaseObject):
                          label_order=label_order)
         return plot_col, plot_row
 
+    def plots_2d_triplets(self, root_params_triplets, nx=None, filled=False, x_lim=None):
+        """
+        Creates an array of 2D plots, where each plot uses different samples, x and y parameters
+
+        :param root_params_triplets: a list of (root, x, y) giving sample root names, and x and y parameter names to
+                                     plot in each subplot
+        :param nx: number of subplots per row
+        :param filled:  True for filled contours
+        :param x_lim: limits for all the x axes.
+        :return: The plot_col, plot_row subplot dimensions of the new figure
+        """
+        plot_col, plot_row = self.make_figure(len(root_params_triplets), nx=nx)
+        for i, (root, param1, param2) in enumerate(root_params_triplets):
+            ax = self._subplot_number(i, pars=(param1, param2))
+            self.plot_2d(root, param_pair=[param1, param2], filled=filled, add_legend_proxy=i == 0, ax=ax)
+            if x_lim is not None:
+                ax.set_xlim(x_lim)
+        self.finish_plot()
+        return plot_col, plot_row
+
     def get_axes(self, ax=None, pars=None):
         """
         Get the axes instance corresponding to the given subplot (y,x) coordinates, parameter list, or otherwise
@@ -2086,27 +2128,9 @@ class GetDistPlotter(_BaseObject):
         :param i: index of the subplot
         :return: an :class:`~matplotlib:matplotlib.axes.Axes` instance for the subplot axes
         """
+        if self.fig is None and i == 0:
+            self.make_figure()
         return self._subplot(i % self.plot_col, i // self.plot_col, pars=pars, **kwargs)
-
-    def plots_2d_triplets(self, root_params_triplets, nx=None, filled=False, x_lim=None):
-        """
-        Creates an array of 2D plots, where each plot uses different samples, x and y parameters
-
-        :param root_params_triplets: a list of (root, x, y) giving sample root names, and x and y parameter names to
-                                     plot in each subplot
-        :param nx: number of subplots per row
-        :param filled:  True for filled contours
-        :param x_lim: limits for all the x axes.
-        :return: The plot_col, plot_row subplot dimensions of the new figure
-        """
-        plot_col, plot_row = self.make_figure(len(root_params_triplets), nx=nx)
-        for i, (root, param1, param2) in enumerate(root_params_triplets):
-            ax = self._subplot_number(i, pars=(param1, param2))
-            self.plot_2d(root, param_pair=[param1, param2], filled=filled, add_legend_proxy=i == 0, ax=ax)
-            if x_lim is not None:
-                ax.set_xlim(x_lim)
-        self.finish_plot()
-        return plot_col, plot_row
 
     def _auto_ticks(self, axis, max_ticks=None, prune=True):
         axis.set_major_locator(
@@ -2126,6 +2150,16 @@ class GetDistPlotter(_BaseObject):
             elif index < len(markers):
                 return markers[index]
         return None
+
+    @staticmethod
+    def _make_param_object(names, samples, obj=None):
+        class SampleNames(object):
+            pass
+
+        obj = obj or SampleNames()
+        for i, par in enumerate(names.names):
+            setattr(obj, par.name, samples[:, i])
+        return obj
 
     def triangle_plot(self, roots, params=None, legend_labels=None, plot_3d_with_param=None, filled=False, shaded=False,
                       contour_args=None, contour_colors=None, contour_ls=None, contour_lws=None, line_args=None,
@@ -2462,7 +2496,7 @@ class GetDistPlotter(_BaseObject):
         Rotates the x-tick labels by given rotation (degrees)
 
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param rotation: How much to rotate in degrees.
         :param labelsize: size for tick labels (default from settings.axes_fontsize)
         """
@@ -2473,7 +2507,7 @@ class GetDistPlotter(_BaseObject):
         Rotates the y-tick labels by given rotation (degrees)
 
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param rotation: How much to rotate in degrees.
         :param labelsize: size for tick labels (default from settings.axes_fontsize)
         """
@@ -2512,7 +2546,7 @@ class GetDistPlotter(_BaseObject):
         :param color: The color of the line, uses settings.axis_marker_color by default
         :param ls: The line style to be used, uses settings.axis_marker_ls by default
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param kwargs:  Additional arguments for :class:`~matplotlib:matplotlib.lines.Line2D`
         """
         if color is None:
@@ -2537,16 +2571,6 @@ class GetDistPlotter(_BaseObject):
         cb.set_label(param.latexLabel(), fontsize=self._scaled_fontsize(self.settings.axes_labelsize),
                      rotation=label_rotation, labelpad=self.settings.colorbar_label_pad, **kwargs)
 
-    @staticmethod
-    def _make_param_object(names, samples, obj=None):
-        class SampleNames(object):
-            pass
-
-        obj = obj or SampleNames()
-        for i, par in enumerate(names.names):
-            setattr(obj, par.name, samples[:, i])
-        return obj
-
     def add_2d_scatter(self, root, x, y, color='k', alpha=1, extra_thin=1, scatter_size=None, ax=None):
         """
         Low-level function to adds a 2D sample scatter plot to the current axes (or ax if specified).
@@ -2559,7 +2583,7 @@ class GetDistPlotter(_BaseObject):
         :param extra_thin: thin the weight one samples by this additional factor before plotting
         :param scatter_size: point size (default: settings.scatter_size)
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :return: (xmin, xmax), (ymin, ymax) bounds for the axes.
         """
 
@@ -2579,7 +2603,7 @@ class GetDistPlotter(_BaseObject):
         :param scatter_size: point size (default: settings.scatter_size)
         :param alpha_samples: use all samples, giving each point alpha corresponding to relative weight
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param kwargs: arguments for :func:`~GetDistPlotter.add_colorbar`
         :return: (xmin, xmax), (ymin, ymax) bounds for the axes.
         """
@@ -2673,7 +2697,8 @@ class GetDistPlotter(_BaseObject):
         """
         kwargs = kwargs.copy()
         kwargs['fixed_color'] = color
-        self.plot_3d(roots, [param1, param2], False, line_offset, add_legend_proxy, **kwargs)
+        self.plot_3d(roots, [param1, param2], color_bar=False, line_offset=line_offset,
+                     add_legend_proxy=add_legend_proxy, **kwargs)
 
     def plot_3d(self, roots, params=None, params_for_plots=None, color_bar=True, line_offset=0,
                 add_legend_proxy=True, alpha_samples=False, ax=None, **kwargs):
@@ -2693,7 +2718,7 @@ class GetDistPlotter(_BaseObject):
         :param alpha_samples: if True, use alternative scatter style where all samples are plotted alphaed by
                               their weights
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param kwargs: additional optional arguments:
 
                 * **filled**: True for filled contours for second and later items in roots
@@ -2723,8 +2748,6 @@ class GetDistPlotter(_BaseObject):
                 raise GetDistPlotError('No parameters for plot_3d!')
             params = self.get_param_array(roots[0], params)
             params_for_plots = [params for _ in roots]  # all the same
-        if self.fig is None:
-            self.make_figure()
         ax = self.get_axes(ax, pars=params_for_plots[0])
         contour_args = self._make_contour_args(len(roots) - 1, **kwargs)
         xlims, ylims = self.add_3d_scatter(roots[0], params_for_plots[0], color_bar=color_bar,
@@ -2801,7 +2824,7 @@ class GetDistPlotter(_BaseObject):
         :param x: The x coordinate of where to add the label
         :param y: The y coordinate of where to add the label.
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param kwargs: keyword arguments for :func:`~matplotlib:matplotlib.pyplot.text`
         """
         args = {'horizontalalignment': 'right' if x > 0.5 else 'left', 'verticalalignment': 'center',
@@ -2818,7 +2841,7 @@ class GetDistPlotter(_BaseObject):
         :param x: The x coordinate of where to add the label
         :param y: The y coordinate of where to add the label.
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
-                   to add to (defaults to current plot to first plot if none)
+                   to add to (defaults to current plot or the first/main plot if none)
         :param kwargs: keyword arguments for :func:`~matplotlib:matplotlib.pyplot.text`
         """
         args = {'horizontalalignment': 'left'}

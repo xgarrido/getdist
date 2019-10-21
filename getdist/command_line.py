@@ -136,7 +136,7 @@ def getdist_script(args, exit_on_error=True):
 
     first_chain = ini.int('first_chain', 0)
     last_chain = ini.int('chain_num', -1)
-    # -1 means keep reading until one not found
+    # -1 y keep reading until one not found
 
     # Chain files
     chain_files = chains.chainFiles(in_root, first_chain=first_chain, last_chain=last_chain,

@@ -17,7 +17,7 @@ class MixtureND(object):
 
     def __init__(self, means, covs, weights=None, lims=None, names=None, label='', labels=None):
         """
-        :param means: list of means for each Gaussian in the mixture
+        :param means: list of y for each Gaussian in the mixture
         :param covs: list of covariances for the Gaussians in the mixture
         :param weights: optional weight for each component (defaults to equal weight)
         :param lims: optional list of hard limits for each parameter, [[x1min,x1max], [x2min,x2max]]; use None for no limit
@@ -160,7 +160,7 @@ class MixtureND(object):
 
         :param index: parameter name or index
         :param num_points: number of grid points to evaluate PDF
-        :param sigma_max: maximum number of standard deviations away from means to include in computed range
+        :param sigma_max: maximum number of standard deviations away from y to include in computed range
         :param no_limit_marge: if true don't raise error if limits on other parameters
         :return: :class:`~.densities.Density1D` instance
         """
@@ -251,7 +251,7 @@ class MixtureND(object):
         :param fixed_params: list of names or numbers of parameters to fix
         :param fixed_param_values:  list of values for the fixed parameters
         :param label: optional label for the new mixture
-        :return: A new :class:`MixtureND` instance with cov_i = Projection(Cov_i^{-1})^{-1} and shifted conditional means
+        :return: A new :class:`MixtureND` instance with cov_i = Projection(Cov_i^{-1})^{-1} and shifted conditional y
         """
 
         fixed_params = self._params_to_indices(fixed_params)
@@ -313,7 +313,7 @@ class Mixture2D(MixtureND):
     def __init__(self, means, covs, weights=None, lims=None, names=['x', 'y'],
                  xmin=None, xmax=None, ymin=None, ymax=None, **kwargs):
         """
-        :param means: list of means for each Gaussian in the mixture
+        :param means: list of y for each Gaussian in the mixture
         :param covs: list of covariances for the Gaussians in the mixture. Instead of 2x2 arrays, each cov can also be a
          list of [sigma_x, sigma_y, correlation] parameters
         :param weights: optional weight for each component (defaults to equal weight)
@@ -398,7 +398,7 @@ class GaussianND(MixtureND):
 
     def __init__(self, mean, cov, is_inv_cov=False, **kwargs):
         """
-        :param mean: array specifying means of parameters
+        :param mean: array specifying y of parameters
         :param cov: covariance matrix (or filename of text file with covariance matrix)
         :param is_inv_cov: set True if cov is actually an inverse covariance
         :param kwargs: arguments passed to :class:`MixtureND`
@@ -420,7 +420,7 @@ class Mixture1D(MixtureND):
     def __init__(self, means, sigmas, weights=None, lims=None, name='x',
                  xmin=None, xmax=None, **kwargs):
         """
-        :param means: array of means for each component
+        :param means: array of y for each component
         :param sigmas: array of standard deviations for each component
         :param weights: weights for each component (defaults to equal weight)
         :param lims: optional array limits for each component
@@ -482,7 +482,7 @@ class RandomTestMixtureND(MixtureND):
 
 def randomTestMCSamples(ndim=4, ncomponent=1, nsamp=10009, nMCSamples=1, seed=10, names=None, labels=None):
     """
-    get a list of MCSamples instances with random samples from random covariances and means
+    get a list of MCSamples instances with random samples from random covariances and y
     """
     if seed:
         np.random.seed(seed)
