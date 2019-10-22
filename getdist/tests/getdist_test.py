@@ -241,6 +241,18 @@ class GetDistTest(unittest.TestCase):
         omm = np.arange(0.1, 0.7, 0.01)
         g.add_bands(omm, 0.589 * omm ** (-0.25), 0.03 * omm ** (-0.25), nbands=3)
 
+        g = plots.get_subplot_plotter()
+        import copy
+        for upper in [False, True]:
+            g.triangle_plot([samples, samples2], ['x', 'y', 'z'], filled=True,
+                            upper_roots=[copy.deepcopy(samples)], upper_kwargs={'contour_colors': ['green']},
+                            legend_labels=['1', '2', '3'], upper_label_right=upper)
+            for i in range(3):
+                for j in range(i):
+                    self.assertTrue(g.subplots[i, j].get_xlim() == g.subplots[j, i].get_ylim())
+                    self.assertTrue(g.subplots[i, j].get_ylim() == g.subplots[j, i].get_xlim())
+                    self.assertTrue(g.subplots[i, j].get_xlim() == g.subplots[j, j].get_xlim())
+
 
 class UtilTest(unittest.TestCase):
     """test some getdist routines and plotting"""
@@ -269,11 +281,25 @@ class UtilTest(unittest.TestCase):
         g.prob_label = r'$P$'
         g.prob_y_ticks = True
         g.plot_1d(samples, 'x')
-        plt.xlim([-5.2, 5.2])
-        self.assertTrue(np.allclose(g.get_axes().get_yticks(), [0, 0.5, 1]))
-        self.assertTrue(np.allclose(g.get_axes().get_xticks(), [-4, -2, 0, 2, 4]))
-        plt.xlim([0, 8.2])
-        print(g.get_axes().get_xticks())
+        ax = g.get_axes()
+        self.assertTrue(np.allclose(ax.get_yticks(), [0, 0.5, 1]), "Wrong probability ticks")
+
+        def check_ticks(bounds, expected):
+            ax.set_xlim(bounds)
+            ticks = ax.get_xticks()
+            if len(ticks) != len(expected) or not np.allclose(ticks, expected):
+                raise self.failureException("Wrong ticks %s for bounds %s" % (ticks, bounds))
+
+        check_ticks([-5.2, 5.2], [-4, -2, 0, 2, 4])
+        check_ticks([0, 8.2], [0, 2, 4, 6, 8])
+        check_ticks([0.0219, 0.02232], [0.022, 0.0222])
+        check_ticks([-0.009, 0.009], [-0.008, 0., 0.008])
+        g.make_figure(nx=2, ny=1, sharey=True)
+        ax = g.get_axes()
+        g._set_main_axis_properties(ax.xaxis, True)
+        ax.set_yticks([])
+        check_ticks([-0.009, 0.009], [-0.006, 0., 0.006])
+        check_ticks([1, 1.0004], [1.0001, 1.0003])
 
     def test_locator(self):
         import matplotlib.backends.backend_pdf

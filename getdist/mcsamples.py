@@ -220,7 +220,12 @@ class MCSamples(Chains):
 
                      - if int >=1: The number of rows to skip at the file in the beginning of the file
                      - if float <1: The fraction of rows to skip at the beginning of the file
+               - **label**: a latex label for the samples
                - **name_tag**: a name tag for this instance
+               -  **sampler**: string describing the type of samples; if "nested" or "uncorrelated"
+                  the effective number of samples is calculated using uncorrelated approximation. If not specified
+                  will be read from the root.properties.ini file if it exists and otherwise default to "mcmc".
+
         """
         Chains.__init__(self, root, jobItem=jobItem, **kwargs)
 
@@ -303,6 +308,8 @@ class MCSamples(Chains):
                 self.ignore_frac = 0.
                 self.ignore_lines = 0
             self.label = self.label or self.properties.params.get('label', None)
+            if 'sampler' not in kwargs:
+                self.sampler = self.properties.string('sampler', self.sampler)
         else:
             self.properties = None
 
