@@ -194,6 +194,12 @@ class ParamList(object):
         """
         return [name.name for name in self.names]
 
+    def labels(self):
+        """
+        Gets a list of parameter labels
+        """
+        return [name.label for name in self.names]
+
     def listString(self):
         return " ".join(self.list())
 

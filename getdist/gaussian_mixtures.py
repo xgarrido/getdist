@@ -4,6 +4,7 @@ from getdist.densities import Density1D, Density2D
 from getdist.paramnames import ParamNames
 from getdist.mcsamples import MCSamples
 import six
+import copy
 
 
 def make_2D_Cov(sigmax, sigmay, corr):
@@ -82,15 +83,15 @@ class MixtureND(object):
         :param size: number of samples
         :param names: set to override existing names
         :param logLikes: if True set the sample likelihood values from the pdf, if false, don't store log likelihoods
-        :return: list of [x,y] pair names
+        :return: a new :class:`.mcsamples.MCSamples` instance
         """
         samples = self.sim(size)
         if logLikes:
             loglikes = -np.log(self.pdf(samples))
         else:
             loglikes = None
-        return MCSamples(samples=samples, loglikes=loglikes, paramNamesFile=self.paramNames, names=names,
-                         ranges=self.lims, **kwargs)
+        return MCSamples(samples=samples, loglikes=loglikes, paramNamesFile=copy.deepcopy(self.paramNames),
+                         names=names, ranges=self.lims, **kwargs)
 
     def autoRanges(self, sigma_max=4, lims=None):
         res = []

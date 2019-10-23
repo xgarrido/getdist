@@ -9,6 +9,7 @@ import getdist.cobaya_interface as cobaya
 import pickle
 import six
 import logging
+import copy
 
 # whether to write to terminal chain names and burn in details when loaded from file
 print_load_details = True
@@ -342,9 +343,9 @@ class WeightedSamples(object):
 
     def setMeans(self):
         """
-        Calculates and saves the y for the samples
+        Calculates and saves the means of the samples
 
-        :return: numpy array of parameter y
+        :return: numpy array of parameter means
         """
         self.means = self.weights.dot(self.samples) / self.norm
         if self.loglikes is not None:
@@ -353,15 +354,19 @@ class WeightedSamples(object):
             self.mean_loglike = None
         return self.means
 
-    def getMeans(self):
+    def getMeans(self, pars=None):
         """
-        Gets the parameter y, from saved array if previously calculated.
+        Gets the parameter means, from saved array if previously calculated.
 
-        :return: numpy array of parameter y
+        :param pars: optional list of parameter indices to return means for
+        :return: numpy array of parameter means
         """
         if self.means is None:
-            return self.setMeans()
-        return self.means
+            self.setMeans()
+        if pars is None:
+            return self.means
+        else:
+            return np.array([self.means[i] for i in pars])
 
     def getVars(self):
         """
@@ -564,7 +569,8 @@ class WeightedSamples(object):
         :return: normalization
         """
         if where is None:
-            if self.norm is None: self.norm = np.sum(self.weights)
+            if self.norm is None:
+                self.norm = np.sum(self.weights)
             return self.norm
         else:
             return np.sum(self.weights[where])
@@ -661,7 +667,7 @@ class WeightedSamples(object):
 
     def mean_diffs(self, pars=None, where=None):
         """
-        Calculates a list of parameter vectors giving distances from parameter y
+        Calculates a list of parameter vectors giving distances from parameter means
 
         :param pars: if specified, list of parameter vectors or int parameter indices to use
         :param where: if specified, a filter for the samples to use (where x>=5 would mean only process samples with x>=5).
@@ -976,12 +982,12 @@ class Chains(WeightedSamples):
         """
         Sets the names of the params.
 
-        :param names: Either a :class:`~.paramnames.ParamNames` object, the name of a .paramnames file to load, a list of name strings,
-                      otherwise use default names (param1, param2...).
+        :param names: Either a :class:`~.paramnames.ParamNames` object, the name of a .paramnames file to load, a list
+                      of name strings, otherwise use default names (param1, param2...).
         """
         self.paramNames = None
         if isinstance(names, ParamNames):
-            self.paramNames = names
+            self.paramNames = copy.deepcopy(names)
         elif isinstance(names, six.string_types):
             self.paramNames = ParamNames(names)
         elif names is not None:
@@ -1034,7 +1040,7 @@ class Chains(WeightedSamples):
 
     def _parAndNumber(self, name):
         """
-         Get index and ParamInfo for a name or index
+        Get index and ParamInfo for a name or index
 
         :param name: name or parameter index
         :return: index, ParamInfo instance

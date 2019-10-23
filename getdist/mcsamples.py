@@ -2416,7 +2416,7 @@ class MCSamples(Chains):
         self.saveTextMetadata(root, properties)
 
     # Write functions for console script
-    def writeScriptPlots1D(self, filename, plotparams=None, ext=None):
+    def _writeScriptPlots1D(self, filename, plotparams=None, ext=None):
         """
         Write a script that generates a 1D plot. Only intended for use by getdist script.
 
@@ -2431,7 +2431,7 @@ class MCSamples(Chains):
             text += 'g.plots_1d(roots, markers=markers)'
         self._WritePlotFile(filename, self.subplot_size_inch, text, '', ext)
 
-    def writeScriptPlots2D(self, filename, plot_2D_param=None, cust2DPlots=[], ext=None):
+    def _writeScriptPlots2D(self, filename, plot_2D_param=None, cust2DPlots=[], ext=None):
         """
         Write script that generates a 2 dimensional plot. Only intended for use by getdist script.
 
@@ -2465,7 +2465,7 @@ class MCSamples(Chains):
         self._WritePlotFile(filename, self.subplot_size_inch2, text, '_2D', ext)
         return done2D
 
-    def writeScriptPlotsTri(self, filename, triangle_params, ext=None):
+    def _writeScriptPlotsTri(self, filename, triangle_params, ext=None):
         """
         Write a script that generates a triangle plot. Only intended for use by getdist script.
 
@@ -2476,7 +2476,7 @@ class MCSamples(Chains):
         text = 'g.triangle_plot(roots, %s)' % triangle_params
         self._WritePlotFile(filename, self.subplot_size_inch, text, '_tri', ext)
 
-    def writeScriptPlots3D(self, filename, plot_3D, ext=None):
+    def _writeScriptPlots3D(self, filename, plot_3D, ext=None):
         """
         Writes a script that generates a 3D (coloured-scatter) plot. Only intended for use by getdist script.
 
@@ -2513,8 +2513,6 @@ class MCSamples(Chains):
             f.write("g.export(os.path.join(r'%s',r'%s'))\n" % (self.out_dir, fname))
 
 
-# ==============================================================================
-
 # Useful functions
 
 def GetChainRootFiles(rootdir):
@@ -2549,5 +2547,3 @@ def GetRootFileName(rootdir):
         rindex = chain_file0.rindex('_')
         rootFileName = chain_file0[:rindex]
     return rootFileName
-
-# ==============================================================================

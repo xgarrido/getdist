@@ -243,7 +243,7 @@ def getdist_script(args, exit_on_error=True):
         make_plots = ini.bool('make_plots', False) or args.make_plots
 
         filename = rootdirname + '.' + plot_ext
-        mc.writeScriptPlots1D(filename, plotparams)
+        mc._writeScriptPlots1D(filename, plotparams)
         if make_plots: runScript(filename)
 
         # Do 2D bins
@@ -258,21 +258,21 @@ def getdist_script(args, exit_on_error=True):
         if cust2DPlots or plot_2D_param:
             doprint('...producing 2D plots')
             filename = rootdirname + '_2D.' + plot_ext
-            mc.writeScriptPlots2D(filename, plot_2D_param, cust2DPlots)
+            mc._writeScriptPlots2D(filename, plot_2D_param, cust2DPlots)
             if make_plots: runScript(filename)
 
         if triangle_plot:
             # Add the off-diagonal 2D plots
             doprint('...producing triangle plot')
             filename = rootdirname + '_tri.' + plot_ext
-            mc.writeScriptPlotsTri(filename, triangle_params)
+            mc._writeScriptPlotsTri(filename, triangle_params)
             if make_plots: runScript(filename)
 
         # Do 3D plots (i.e. 2D scatter plots with coloured points)
         if num_3D_plots:
             doprint('...producing ', num_3D_plots, '2D colored scatter plots')
             filename = rootdirname + '_3D.' + plot_ext
-            mc.writeScriptPlots3D(filename, plot_3D)
+            mc._writeScriptPlots3D(filename, plot_3D)
             if make_plots: runScript(filename)
 
     if not plots_only:
