@@ -210,6 +210,7 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
         raw_step = max(label_len, _range / ((nbins - 2) if nbins > 2 else 1))
         raw_step1 = _range / max(1, (nbins - (0 if self.bounded_prune else 1)))
         best = []
+        best_score = -np.infty
         for step_ix, (_steps, _offsets) in enumerate(zip(self._step_groups, self._offsets)):
 
             steps = _steps * scale
@@ -281,15 +282,26 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
                         if len(best) and odd_gaps and step_ix or changing_lengths and not self._valid(ticks):
                             continue
 
-                        too_few_points = len(ticks) < 3 and (nbins > (3 if step_ix else 4)) or (
-                                len(ticks) < max(2, (nbins + 1) // 2))
-                        if off and not step_ix or step_ix and big_step and (not len(best) or len(ticks) < len(best)) \
+                        too_few_points = (len(ticks) < 3 and (nbins > (3 if step_ix else 4)) or (
+                                len(ticks) < max(2, (nbins + 1) // 2))) and step > label_len * 1.5
+                        _score = -1 * too_few_points - step_ix * 2 - close_ticks * 2 - odd_gaps * 1
+                        if len(ticks) < 3 and big_step:
+                            _score -= 2
+                        if off:
+                            _score -= 3
+                        if step_int == 1.0 and not off:
+                            _score += 1
+                        if 0. in steps:
+                            _score += 1
+                        if _score <= best_score:
+                            continue
+                        if off and not step_ix or big_step and (not len(best) or len(ticks) < len(best)) \
                                 or close_ticks or too_few_points or odd_gaps:
                             # prefer spacing where some ticks nearish the ends and ticks not too close in centre
                             best = ticks
+                            best_score = _score
                         else:
                             return ticks, True
-
         return best, False
 
 

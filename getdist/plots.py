@@ -2244,6 +2244,18 @@ class GetDistPlotter(_BaseObject):
                          sharey=self.settings.no_triangle_axis_labels)
         lims = dict()
 
+        def _axis_y_limit_changed(_ax):
+            _lims = _ax.get_ylim()
+            other = _ax._shared_x_axis
+            if _lims != other.get_xlim():
+                other.set_xlim(_lims)
+
+        def _axis_x_limit_changed(_ax):
+            _lims = _ax.get_xlim()
+            other = _ax._shared_y_axis
+            if _lims != other.get_ylim():
+                other.set_ylim(_lims)
+
         def def_line_args(cont_args, cont_colors):
             cols = []
             for plotno, _arg in enumerate(cont_args):
@@ -2310,6 +2322,9 @@ class GetDistPlotter(_BaseObject):
                                 label_right=True, no_zero=True, no_ylabel=True, no_ytick=True, line_args=line_args,
                                 lims=param_limits.get(param.name), ax=ax, _ret_range=True, **diag1d_kwargs)
             lims[i] = xlim
+            if i > 0:
+                ax._shared_y_axis = self.subplots[i, 0]
+                ax.callbacks.connect('xlim_changed', _axis_x_limit_changed)
 
         if upper_roots is not None:
             if not upper_label_right:
@@ -2323,13 +2338,15 @@ class GetDistPlotter(_BaseObject):
                 self.set_ylabel(params[0], ax=label_ax)
                 self._set_main_axis_properties(label_ax.yaxis, False)
                 self.subplots[0, 0].yaxis.set_visible(False)
+            else:
+                label_ax = self.subplots[0, bottom]
 
             for y, param in enumerate(params[:-1]):
                 for x in range(bottom, y, -1):
-                    if upper_label_right:
-                        share = self.subplots[y, bottom] if y < bottom else None
+                    if y > 0:
+                        share = self.subplots[y, 0]
                     else:
-                        share = self.subplots[y, 0] if y > 0 else label_ax
+                        share = label_ax if (y < bottom or not upper_label_right) else None
                     self._subplot(x, y, pars=(params[x], param), sharex=self.subplots[bottom, x], sharey=share)
 
         for i, param in enumerate(params):
@@ -2354,10 +2371,21 @@ class GetDistPlotter(_BaseObject):
                 self._inner_ticks(ax)
                 if i == 0:
                     ax.set_ylim(lims[i2])
-                if i2 == len(params) - 1:
+
+                ax._shared_x_axis = self.subplots[bottom, i2]
+                ax.callbacks.connect('ylim_changed', _axis_y_limit_changed)
+
+                if i2 == bottom:
                     ax.set_xlim(lims[i])
+                if i > 0:
+                    ax._shared_y_axis = self.subplots[i, 0]
+                    ax.callbacks.connect('xlim_changed', _axis_x_limit_changed)
 
                 if upper_roots is not None:
+                    if i == 0:
+                        ax._shared_y_axis = label_ax
+                        ax.callbacks.connect('xlim_changed', _axis_x_limit_changed)
+
                     ax = self.subplots[i, i2]
                     pair.reverse()
                     if plot_3d_with_param is not None:
@@ -2384,6 +2412,8 @@ class GetDistPlotter(_BaseObject):
 
                     ax.set_xlim(lims[i2])
                     ax.set_ylim(lims[i])
+                    ax._shared_x_axis = self.subplots[bottom, i]
+                    ax.callbacks.connect('ylim_changed', _axis_y_limit_changed)
                     self._inner_ticks(ax)
 
         self._subplots_adjust()

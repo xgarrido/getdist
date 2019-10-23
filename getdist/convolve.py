@@ -205,9 +205,9 @@ def convolveGaussianTrunc(x, sigma, sigma_range=4, mode='same', cache=None):
     gauss = None if cache is None else cache.get((fill, actual_size, sigma))
     if gauss is None:
         points = np.arange(-fill, fill + 1)
-        Win = np.exp(-(points / sigma) ** 2 / 2.)
-        Win /= np.sum(Win)
-        gauss = np.fft.rfft(Win, s)
+        win = np.exp(-(points / sigma) ** 2 / 2.)
+        win /= np.sum(win)
+        gauss = np.fft.rfft(win, s)
         if cache is not None:
             cache[(fill, actual_size, sigma)] = gauss
     res = np.fft.irfft(np.fft.rfft(x, s) * gauss, s)[:actual_size]

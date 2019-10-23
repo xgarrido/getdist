@@ -255,7 +255,7 @@ class GetDistTest(unittest.TestCase):
 
 
 class UtilTest(unittest.TestCase):
-    """test some getdist routines and plotting"""
+    """test bounded and unbounded tick assignment"""
 
     def _plot_with_params(self, scale, x, off, prune, default=False):
         from getdist.matplotlib_ext import BoundedMaxNLocator
@@ -274,12 +274,26 @@ class UtilTest(unittest.TestCase):
         self._plot_with_params(0.01, 1, 0.05, True)
         plt.draw()
 
+    def test_y(self):
+        from getdist.matplotlib_ext import BoundedMaxNLocator
+        fig, ax = plt.subplots(1, 1, figsize=(3, 3))
+        ax.plot([0, 1], [0, 1])
+        ax.yaxis.set_major_locator(BoundedMaxNLocator(prune=True))
+
+        def check_ticks(bounds, expected):
+            ax.set_ylim(bounds)
+            ticks = ax.get_yticks()
+            if len(ticks) != len(expected) or not np.allclose(ticks, expected):
+                raise self.failureException("Wrong ticks %s for bounds %s" % (ticks, bounds))
+
+        check_ticks([0.0253, 0.02915], [0.026, 0.027, 0.028])
+
     def test_specifics(self):
         testdists = Test2DDistributions()
         samples = testdists.bimodal[0].MCSamples(1000, logLikes=True)
         g = plots.get_subplot_plotter(auto_close=True)
-        g.prob_label = r'$P$'
-        g.prob_y_ticks = True
+        g.settings.prob_label = r'$P$'
+        g.settings.prob_y_ticks = True
         g.plot_1d(samples, 'x')
         ax = g.get_axes()
         self.assertTrue(np.allclose(ax.get_yticks(), [0, 0.5, 1]), "Wrong probability ticks")

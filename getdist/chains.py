@@ -398,7 +398,8 @@ class WeightedSamples(object):
         :param normalized: Set to False to get covariance (note even if normalized, corr[0]<>1 in general unless weights are unity).
         :return: zero-based array giving auto-correlations
         """
-        if maxOff is None: maxOff = self.n - 1
+        if maxOff is None:
+            maxOff = self.n - 1
         d = self.mean_diff(paramVec) * self.weights
         corr = autoConvolve(d, n=maxOff + 1, normalize=True)
         if normalized: corr /= self.var(paramVec)
@@ -438,7 +439,7 @@ class WeightedSamples(object):
         """
         Roughly estimate an effective sample number for use in the leading term for the MISE
         (mean integrated squared error) of a Gaussian-kernel KDE (Kernel Density Estimate). This is used for
-        optimizing the kernel bandwidth, and though approximate should be better than entirely ignoring samples
+        optimizing the kernel bandwidth, and though approximate should be better than entirely ignoring sample
         correlations, or only counting distinct samples.
 
         Uses fiducial assumed kernel scale h; result does depend on this (typically by factors O(2))
@@ -448,7 +449,7 @@ class WeightedSamples(object):
         In the limit h-> 0 (but still >0) answer should be correct (then just includes MCMC rejection duplicates).
         In reality correct result for practical h should depends on shape of the correlation function.
 
-        If self.sampler is 'nested' or 'uncorrelated' return result for uncorrelated samples
+        If self.sampler is 'nested' or 'uncorrelated' return result for uncorrelated samples.
 
         :param paramVec: parameter array, or int index of parameter to use
         :param h: fiducial assumed kernel scale.
@@ -462,25 +463,80 @@ class WeightedSamples(object):
         d = self._makeParamvec(paramVec)
         # Result does depend on kernel width, but hopefully not strongly around typical values ~ sigma/4
         kernel_std = (scale or self.std(d)) * h
-        # Dependence is from very correlated points due to MCMC rejections; shouldn't need more than about correlation length
-        if maxoff is None: maxoff = int(self.getCorrelationLength(d, weight_units=False) * 1.5) + 4
+        # Dependence is from very correlated points due to MCMC rejections;
+        # Shouldn't need more than about correlation length
+        if maxoff is None:
+            maxoff = int(self.getCorrelationLength(d, weight_units=False) * 1.5) + 4
         maxoff = min(maxoff, self.numrows // 10)  # can get problems otherwise if weights are all very large
         uncorr_len = self.numrows // 2
-        UncorrTerm = 0
+        uncorr_term = 0
         nav = 0
         # first get expected value of each term for uncorrelated samples
         for k in range(uncorr_len, uncorr_len + 5):
             nav += self.numrows - k
             diff2 = (d[:-k] - d[k:]) ** 2 / kernel_std ** 2
-            UncorrTerm += np.dot(np.exp(-diff2 / 4) * self.weights[:-k], self.weights[k:])
-        UncorrTerm /= nav
+            uncorr_term += np.dot(np.exp(-diff2 / 4) * self.weights[:-k], self.weights[k:])
+        uncorr_term /= nav
 
         corr = np.zeros(maxoff + 1)
         corr[0] = np.dot(self.weights, self.weights)
         n = float(self.numrows)
         for k in range(1, maxoff + 1):
             diff2 = (d[:-k] - d[k:]) ** 2 / kernel_std ** 2
-            corr[k] = np.dot(np.exp(-diff2 / 4) * self.weights[:-k], self.weights[k:]) - (n - k) * UncorrTerm
+            corr[k] = np.dot(np.exp(-diff2 / 4) * self.weights[:-k], self.weights[k:]) - (n - k) * uncorr_term
+            if corr[k] < min_corr * corr[0]:
+                corr[k] = 0
+                break
+        N = corr[0] + 2 * np.sum(corr[1:])
+        return self.get_norm() ** 2 / N
+
+    def getEffectiveSamplesGaussianKDE_2d(self, i, j, h=0.3, maxoff=None, min_corr=0.05):
+        """
+        Roughly estimate an effective sample number for use in the leading term for the 2D MISE.
+        If self.sampler is 'nested' or 'uncorrelated' return result for uncorrelated samples.
+
+        :param i: parameter array, or int index of first parameter to use
+        :param j: parameter array, or int index of second parameter to use
+        :param h: fiducial assumed kernel scale.
+        :param maxoff: maximum value of auto-correlation length to use
+        :param min_corr: ignore correlations smaller than this auto-correlation
+        :return: A very rough effective sample number for leading term for the MISE of a Gaussian KDE.
+        """
+        if getattr(self, "sampler", "") in ["nested", "uncorrelated"]:
+            return self.get_norm() ** 2 / np.dot(self.weights, self.weights)
+        d1 = self._makeParamvec(i)
+        d2 = self._makeParamvec(j)
+        cov = self.cov([d1, d2])
+        if abs(cov[0, 1]) > np.sqrt(cov[0, 0] * cov[1, 1]) * 0.999:
+            # totally correlated, fall back to 1D
+            return self.getEffectiveSamplesGaussianKDE(i, h=h, min_corr=min_corr)
+        # result does depend on kernel width, use fiducial h
+        kernel_inv = np.linalg.inv(cov) / h ** 2
+
+        # Dependence is from very correlated points due to MCMC rejections;
+        # Shouldn't need more than about correlation length
+        if maxoff is None:
+            maxoff = int(max(self.getCorrelationLength(d1, weight_units=False),
+                             self.getCorrelationLength(d2, weight_units=False)) * 1.5) + 4
+        maxoff = min(maxoff, self.numrows // 10)  # can get problems otherwise if weights are all very large
+        uncorr_len = self.numrows // 2
+        uncorr_term = 0
+        nav = 0
+        # first get expected value of each term for uncorrelated samples
+        for k in range(uncorr_len, uncorr_len + 5):
+            nav += self.numrows - k
+            delta = np.vstack((d1[:-k] - d1[k:], d2[:-k] - d2[k:]))
+            diff2 = np.sum(delta * kernel_inv.dot(delta), 0)
+            uncorr_term += np.dot(np.exp(-diff2 / 4) * self.weights[:-k], self.weights[k:])
+        uncorr_term /= nav
+
+        corr = np.zeros(maxoff + 1)
+        corr[0] = np.dot(self.weights, self.weights)
+        n = float(self.numrows)
+        for k in range(1, maxoff + 1):
+            delta = np.vstack((d1[:-k] - d1[k:], d2[:-k] - d2[k:]))
+            diff2 = np.sum(delta * kernel_inv.dot(delta), 0)
+            corr[k] = np.dot(np.exp(-diff2 / 4) * self.weights[:-k], self.weights[k:]) - (n - k) * uncorr_term
             if corr[k] < min_corr * corr[0]:
                 corr[k] = 0
                 break
@@ -496,7 +552,8 @@ class WeightedSamples(object):
         :return: weighted sum
         """
         paramVec = self._makeParamvec(paramVec)
-        if where is None: return self.weights.dot(paramVec)
+        if where is None:
+            return self.weights.dot(paramVec)
         return np.dot(paramVec[where], self.weights[where])
 
     def get_norm(self, where=None):
