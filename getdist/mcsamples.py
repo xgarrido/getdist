@@ -1617,8 +1617,8 @@ class MCSamples(Chains):
 
         :param x: index or name of x parameter
         :param y: index or name of y parameter
-        :param kwargs: keyword arguments for the :func:`get2DDensityGridData` function
         :param normalized: if False, is normalized so the maximum is 1, if True, density is normalized
+        :param kwargs: keyword arguments for the :func:`get2DDensityGridData` function
         :return: :class:`~.densities.Density2D` instance
         """
         if self.needs_update:
@@ -1895,8 +1895,8 @@ class MCSamples(Chains):
         Returns a :class:`~.densities.DensityND` instance with marginalized ND density.
 
         :param xs: indices or names of x_i parameters
-        :param kwargs: keyword arguments for the :meth:`~.mcsamples.MCSamples.getRawNDDensityGridData` function
         :param normalized: if False, is normalized so the maximum is 1, if True, density is normalized
+        :param kwargs: keyword arguments for the :meth:`~.mcsamples.MCSamples.getRawNDDensityGridData` function
         :return: :class:`~.densities.DensityND` instance
         """
         if self.needs_update: self.updateBaseStatistics()

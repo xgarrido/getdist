@@ -894,7 +894,7 @@ class GetDistPlotter(_BaseObject):
                            Default from settings.norm_1d_density.
         :param ax: optional :class:`~matplotlib:matplotlib.axes.Axes` instance (or y,x subplot coordinate)
                    to add to (defaults to current plot or the first/main plot if none)
-        :param title_limit:if not None, a maginalized limit (1,2..) to print as the title of the plot
+        :param title_limit: if not None, a maginalized limit (1,2..) to print as the title of the plot
         :param kwargs: arguments for :func:`~matplotlib:matplotlib.pyplot.plot`
         :return: min, max for the plotted density
         """
@@ -1466,7 +1466,7 @@ class GetDistPlotter(_BaseObject):
         :param marker: If set, places a marker at given coordinate.
         :param marker_color: If set, sets the marker color.
         :param label_right: If True, label the y axis on the right rather than the left
-        :param title_limit:if not None, a maginalized limit (1,2..) of the first root to print as the title of the plot
+        :param title_limit: If not None, a maginalized limit (1,2..) of the first root to print as the title of the plot
         :param no_ylabel: If True excludes the label on the y axis
         :param no_ytick: If True show no y ticks
         :param no_zero: If true does not show tick label at zero on y axis
