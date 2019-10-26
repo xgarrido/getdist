@@ -25,14 +25,16 @@ def get_long_description():
     with open('README.rst') as f:
         lines = f.readlines()
         i = -1
-        while '=====' not in lines[i]: i -= 1
+        while '=====' not in lines[i]:
+            i -= 1
         return "".join(lines[:i])
 
 
 cmd_class = {}
 install_msg = None
 package_data = {'getdist': ['analysis_defaults.ini', 'distparam_template.ini'],
-                'getdist.gui': ['images/*.png']}
+                'getdist.gui': ['images/*.png'],
+                'getdist.styles': ['*.paramnames', '*.sty']}
 
 if sys.platform == "darwin":
     # Mac wrapper .app bundle
@@ -120,7 +122,7 @@ setup(name='GetDist',
       author='Antony Lewis',
       url="https://github.com/cmbant/getdist",
       zip_safe=False,
-      packages=['getdist', 'getdist.gui', 'paramgrid', 'getdist.tests'],
+      packages=['getdist', 'getdist.gui', 'getdist.tests', 'getdist.styles', 'paramgrid'],
       entry_points={
           'console_scripts': [
               'getdist=getdist.command_line:getdist_command',

@@ -311,7 +311,7 @@ class Mixture2D(MixtureND):
     Gaussian mixture model in 2D with optional boundaries for fixed x and y ranges
     """
 
-    def __init__(self, means, covs, weights=None, lims=None, names=['x', 'y'],
+    def __init__(self, means, covs, weights=None, lims=None, names=('x', 'y'),
                  xmin=None, xmax=None, ymin=None, ymax=None, **kwargs):
         """
         :param means: list of y for each Gaussian in the mixture

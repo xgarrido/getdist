@@ -20,7 +20,6 @@ from getdist import plots, IniFile
 from getdist.mcsamples import GetChainRootFiles, SettingError, ParamError
 from getdist.gui.SyntaxHighlight import PythonHighlighter
 from paramgrid import batchjob, gridconfig
-
 import matplotlib.pyplot as plt
 
 if pyside_version == 2:
@@ -127,7 +126,7 @@ class MainWindow(QMainWindow):
 
         self.setAttribute(Qt.WA_DeleteOnClose)
         if os.name == 'nt':
-            # This is needed to display the app icon on the taskbar on Windows 7
+            # This is needed to display the app icon on the taskbar on Windows 7+
             import ctypes
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('GetDist.Gui.1.0.0')
 
@@ -155,21 +154,21 @@ class MainWindow(QMainWindow):
         logging.getLogger().addHandler(self.log_handler)
         self._last_color = None
 
-        Dirs = self.getSettings().value('directoryList')
-        lastDir = self.getSettings().value('lastSearchDirectory')
+        dirs = self.getSettings().value('directoryList')
+        last_dir = self.getSettings().value('lastSearchDirectory')
 
-        if Dirs is None and lastDir:
-            Dirs = [lastDir]
-        elif isinstance(Dirs, six.string_types):
-            Dirs = [Dirs]  # Qsettings doesn't save single item lists reliably
-        if Dirs is not None:
-            Dirs = [x for x in Dirs if os.path.exists(x)]
-            if lastDir is not None and lastDir not in Dirs and os.path.exists(lastDir):
-                Dirs.insert(0, lastDir)
-            self.listDirectories.addItems(Dirs)
-            if lastDir is not None and os.path.exists(lastDir):
-                self.listDirectories.setCurrentIndex(Dirs.index(lastDir))
-                self.openDirectory(lastDir)
+        if dirs is None and last_dir:
+            dirs = [last_dir]
+        elif isinstance(dirs, six.string_types):
+            dirs = [dirs]  # QSettings doesn't save single item lists reliably
+        if dirs is not None:
+            dirs = [x for x in dirs if os.path.exists(x)]
+            if last_dir is not None and last_dir not in dirs and os.path.exists(last_dir):
+                dirs.insert(0, last_dir)
+            self.listDirectories.addItems(dirs)
+            if last_dir is not None and os.path.exists(last_dir):
+                self.listDirectories.setCurrentIndex(dirs.index(last_dir))
+                self.openDirectory(last_dir)
             else:
                 self.listDirectories.setCurrentIndex(-1)
 
@@ -239,8 +238,8 @@ class MainWindow(QMainWindow):
                                                 statusTip="Reset settings for sample analysis",
                                                 triggered=self.resetAnalysisSettings)
 
-        self.configOptionsAct = QAction("Plot module config ", self,
-                                        statusTip="Configure plot module",
+        self.configOptionsAct = QAction("Plot style module", self,
+                                        statusTip="Configure plot module that sets default settings",
                                         triggered=self.showConfigSettings)
 
         self.helpAct = QAction("GetDist documentation", self,
@@ -799,7 +798,7 @@ class MainWindow(QMainWindow):
             if last is not None:
                 script.insert(last, newline)
             for i, line in enumerate(script):
-                if line.startswith('g=gplot.') and 'analysis_settings' not in line:
+                if line.startswith('g=plots.') and 'analysis_settings' not in line:
                     script[i] = line.strip()[:-1] + ', analysis_settings=analysis_settings)'
                     break
             self.textWidget.setPlainText("\n".join(script))
@@ -825,6 +824,8 @@ class MainWindow(QMainWindow):
         ini = IniFile()
         for par in pars:
             ini.getAttr(settings, par, comment=[comments.get(par, None)])
+            if isinstance(ini.params[par], matplotlib.colors.Colormap):
+                ini.params[par] = ini.params[par].name
         ini.params.update(self.custom_plot_settings)
         self.plotSettingIni = ini
 
@@ -907,8 +908,9 @@ class MainWindow(QMainWindow):
         ini = IniFile()
         ini.params['plot_module'] = self.plot_module
         ini.params['script_plot_module'] = self.script_plot_module
-        ini.comments['plot_module'] = ["module used by the GUI (e.g. change to planckStyle)"]
-        ini.comments['script_plot_module'] = ["module used by saved plot scripts  (e.g. change to planckStyle)"]
+        ini.comments['plot_module'] = [
+            "stylw module used by the GUI (e.g. change to getdist.styles.planck, getdist.styles.tab10)"]
+        ini.comments['script_plot_module'] = ["module used by saved plot scripts  (e.g. getdist.styles.planck)"]
         self.ConfigDlg = self.ConfigDlg or DialogConfigSettings(self, ini, list(ini.params.keys()), title='Plot Config')
         self.ConfigDlg.show()
         self.ConfigDlg.activateWindow()
@@ -928,11 +930,12 @@ class MainWindow(QMainWindow):
                     self.plotSettingDlg.close()
                     self.plotSettingDlg = None
                 if self.plotter:
-                    hasPlot = self.plotter.fig
+                    has_plot = self.plotter.fig
                     self.closePlots()
                     self.getPlotter(loadNew=True)
                     self.custom_plot_settings = {}
-                    if hasPlot: self.plotData()
+                    if has_plot:
+                        self.plotData()
             except Exception as e:
                 self.errorReport(e, "plot_module")
 
@@ -1041,6 +1044,8 @@ class MainWindow(QMainWindow):
         try:
             if self.plotter is None or chain_dir or loadNew:
                 module = __import__(self.plot_module, fromlist=['dummy'])
+                if hasattr(module, "style_name"):
+                    plots.set_active_style(module.style_name)
                 if self.plotter and not loadNew:
                     samps = self.plotter.sample_analyser.mcsamples
                 else:
@@ -1055,7 +1060,7 @@ class MainWindow(QMainWindow):
                         if info.batch not in chain_dirs:
                             chain_dirs.append(info.batch)
 
-                self.plotter = module.getPlotter(chain_dir=chain_dirs, analysis_settings=self.current_settings)
+                self.plotter = plots.get_subplot_plotter(chain_dir=chain_dirs, analysis_settings=self.current_settings)
                 if samps:
                     self.plotter.sample_analyser.mcsamples = samps
                 self.default_plot_settings = copy.copy(self.plotter.settings)
@@ -1417,7 +1422,10 @@ class MainWindow(QMainWindow):
             self.plotter.settings.set_with_subplot_size(3.5)
             self.plotter.settings.__dict__.update(self.custom_plot_settings)
 
-            script = "import %s as gplot\nimport os\n\n" % self.script_plot_module
+            script = "from getdist import plots\n"
+            if self.script_plot_module != 'getdist.plots':
+                script += "from %s import style_name\nplots.set_active_style(style_name)\n" % self.script_plot_module
+            script += "\n"
             override_setting = self.changed_settings()
             if override_setting:
                 script += ('analysis_settings = %s\n' % override_setting).replace(', ', ",\n" + " " * 21)
@@ -1446,11 +1454,11 @@ class MainWindow(QMainWindow):
                 chain_dirs = "r'%s'" % chain_dirs[0].rstrip('\\').rstrip('/')
 
             if override_setting:
-                script += "g=gplot.%schain_dir=%s,analysis_settings=analysis_settings)\n" % (plot_func, chain_dirs)
+                script += "g=plots.%schain_dir=%s,analysis_settings=analysis_settings)\n" % (plot_func, chain_dirs)
             elif self.iniFile:
-                script += "g=gplot.%schain_dir=%s, analysis_settings=r'%s')\n" % (plot_func, chain_dirs, self.iniFile)
+                script += "g=plots.%schain_dir=%s, analysis_settings=r'%s')\n" % (plot_func, chain_dirs, self.iniFile)
             else:
-                script += "g=gplot.%schain_dir=%s)\n" % (plot_func, chain_dirs)
+                script += "g=plots.%schain_dir=%s)\n" % (plot_func, chain_dirs)
 
             if self.custom_plot_settings:
                 for key, value in six.iteritems(self.custom_plot_settings):
@@ -1640,7 +1648,7 @@ class MainWindow(QMainWindow):
                 self.plotWidget.layout().addWidget(self.toolbar)
             self.plotWidget.layout().addWidget(self.canvas)
             self.plotWidget.layout()
-            self.canvas.draw()
+            # self.canvas.draw()
             self.plotWidget.show()
 
     # Edit script
@@ -1700,12 +1708,14 @@ class MainWindow(QMainWindow):
 
         self.script_edit = self.textWidget.toPlainText()
         oldset = plots.default_settings
+        old_style = plots.set_active_style()
         oldrc = matplotlib.rcParams.copy()
         plots.default_settings = plots.GetDistPlotSettings()
         self._set_rc(self.orig_rc)
         self.showMessage("Rendering plot....")
         try:
             script_exec = self.script_edit
+
             if "g.export()" in script_exec:
                 # Comment line which produces export to PDF
                 script_exec = script_exec.replace("g.export", "#g.export")
@@ -1727,6 +1737,7 @@ class MainWindow(QMainWindow):
             self.errorReport(e, caption="Plot script")
         finally:
             plots.default_settings = oldset
+            plots.set_active_style(old_style)
             self._set_rc(oldrc)
             self.showMessage()
 
@@ -1739,7 +1750,8 @@ class MainWindow(QMainWindow):
         i = 0
         while True:
             item = self.plotWidget2.layout().takeAt(i)
-            if item is None: break
+            if item is None:
+                break
             if hasattr(item, "widget"):
                 child = item.widget()
                 del child
@@ -1985,7 +1997,7 @@ class DialogParamTables(DialogTextOutput):
 # ==============================================================================
 
 class DialogSettings(QDialog):
-    def __init__(self, parent, ini, items=None, title='Analysis Settings', width=320, update=None, hint_dic={}):
+    def __init__(self, parent, ini, items=None, title='Analysis Settings', width=320, update=None):
         QDialog.__init__(self, parent, Qt.WindowSystemMenuHint | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
 
         self.update = update

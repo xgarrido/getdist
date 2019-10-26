@@ -55,10 +55,10 @@ class GetDistPlotSettings(_BaseObject):
     :ivar axis_tick_step_groups: steps to try for axis ticks, in grouped in order of preference
     :ivar axis_tick_x_rotation: The rotation for the x tick label in degrees
     :ivar axis_tick_y_rotation: The rotation for the y tick label in degrees
+    :ivar colorbar_axes_fontsize: size for tick labels on colorbar (None for default to match axes font size)
     :ivar colorbar_label_pad: padding for the colorbar label
     :ivar colorbar_label_rotation: angle to rotate colorbar label (set to zero if -90 default gives layout problem)
     :ivar colorbar_tick_rotation: angle to rotate colorbar tick labels
-    :ivar colorbar_axes_fontsize: size for tick labels on colorbar (None for default to match axes font size)
     :ivar colormap: a `Matplotlib color map <https://www.scipy.org/Cookbook/Matplotlib/Show_colormaps>`_ for shading
     :ivar colormap_scatter: a Matplotlib `color map <https://www.scipy.org/Cookbook/Matplotlib/Show_colormaps>`_
                             for 3D scatter plots
@@ -66,7 +66,7 @@ class GetDistPlotSettings(_BaseObject):
     :ivar fig_width_inch: The width of the figure in inches
     :ivar figure_legend_frame: draw box around figure legend
     :ivar figure_legend_loc: The location for the figure legend
-    :ivar figure_legend_ncol: number of columns for figure legend
+    :ivar figure_legend_ncol: number of columns for figure legend (set to zero to use defaults)
     :ivar fontsize: font size for text (and ultimate fallback when others not set)
     :ivar legend_colored_text: use colored text for legend labels rather than separate color blocks
     :ivar legend_fontsize: The font size for the legend (defaults to fontsize)
@@ -179,14 +179,14 @@ class GetDistPlotSettings(_BaseObject):
 
         self.legend_colored_text = False
         self.legend_loc = 'best'
-        self.legend_frac_subplot_margin = 0.1
+        self.legend_frac_subplot_margin = 0.05
         self.legend_fontsize = 12
         self.legend_frame = True
         self.legend_rect_border = False
 
         self.figure_legend_loc = 'upper center'
         self.figure_legend_frame = True
-        self.figure_legend_ncol = 1
+        self.figure_legend_ncol = 0
 
         self.linewidth = 1
         self.linewidth_contour = 0.6
@@ -268,22 +268,30 @@ class GetDistPlotSettings(_BaseObject):
         self.axes_labelsize = lab_fontsize or self._numerical_fontsize(rcParams['axes.labelsize'])
         self.axes_fontsize = axes_fontsize or self._numerical_fontsize(rcParams['xtick.labelsize'])
 
+    def __str__(self):
+        sets = self.__dict__.copy()
+        for key, value in list(sets.items()):
+            if key.startswith('_'):
+                sets.pop(key)
+        return str(sets)
+
 
 default_settings = GetDistPlotSettings()
 defaultSettings = default_settings
 
 
-def get_plotter(**kwargs):
+def get_plotter(style=None, **kwargs):
     """
     Creates a new plotter and returns it
 
-    :param kwargs: arguments for :class:`~getdist.plots.GetDistPlotter`
+    :param style: name of a plotter style (associated with custom plotter class/settings), otherwise uses active
+    :param kwargs: arguments for the style's :class:`~getdist.plots.GetDistPlotter`
     :return: The :class:`GetDistPlotter` instance
     """
-    return GetDistPlotter(**kwargs)
+    return _style_manager.active_class(style)(**kwargs)
 
 
-def get_single_plotter(ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False, **kwargs):
+def get_single_plotter(ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False, style=None, **kwargs):
     """
     Get a :class:`~.plots.GetDistPlotter` for making a single plot of fixed width.
 
@@ -298,21 +306,15 @@ def get_single_plotter(ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False,
     :param scaling: whether to scale down fonts and line widths for small subplot axis sizes
                     (relative to reference sizes, 3.5 inch)
     :param rc_sizes: set default font sizes from matplotlib's current rcParams if no explicit settings passed in kwargs
+    :param style: name of a plotter style (associated with custom plotter class/settings), otherwise uses active
     :param kwargs: arguments for :class:`GetDistPlotter`
     :return: The :class:`~.plots.GetDistPlotter` instance
     """
-    plotter = get_plotter(**kwargs)
-    plotter.settings.set_with_subplot_size(width_inch)
-    if scaling is not None:
-        plotter.settings.scaling = scaling
-    plotter.settings.fig_width_inch = width_inch
-    if not kwargs.get('settings') and rc_sizes:
-        plotter.settings.rc_sizes()
-    plotter.make_figure(1, xstretch=1. / ratio)
-    return plotter
+    return _style_manager.active_class(style).get_single_plotter(ratio=ratio, width_inch=width_inch, scaling=scaling,
+                                                                 rc_sizes=rc_sizes, **kwargs)
 
 
-def get_subplot_plotter(subplot_size=2, width_inch=None, scaling=True, rc_sizes=False, **kwargs):
+def get_subplot_plotter(subplot_size=2, width_inch=None, scaling=None, rc_sizes=False, style=None, **kwargs):
     """
     Get a :class:`~.plots.GetDistPlotter` for making an array of subplots.
 
@@ -327,18 +329,12 @@ def get_subplot_plotter(subplot_size=2, width_inch=None, scaling=True, rc_sizes=
     :param width_inch: Optional total width in inches
     :param scaling: whether to scale down fonts and line widths for small sizes (relative to reference sizes, 3.5 inch)
     :param rc_sizes: set default font sizes from matplotlib's current rcParams if no explicit settings passed in kwargs
+    :param style: name of a plotter style (associated with custom plotter class/settings), otherwise uses active
     :param kwargs: arguments for :class:`GetDistPlotter`
     :return: The :class:`GetDistPlotter` instance
     """
-    plotter = get_plotter(**kwargs)
-    plotter.settings.set_with_subplot_size(subplot_size)
-    if scaling is not None:
-        plotter.settings.scaling = scaling
-    if width_inch:
-        plotter.settings.fig_width_inch = width_inch
-        if not kwargs.get('settings') and rc_sizes:
-            plotter.settings.rc_sizes()
-    return plotter
+    return _style_manager.active_class(style).get_subplot_plotter(subplot_size=subplot_size, width_inch=width_inch,
+                                                                  scaling=scaling, rc_sizes=rc_sizes, **kwargs)
 
 
 # Aliases for backwards compatibility
@@ -653,13 +649,42 @@ class GetDistPlotter(_BaseObject):
 
         self.chain_dir = chain_dir
         if settings is None:
-            self.settings = copy.deepcopy(default_settings)
+            self.set_default_settings()
         else:
             self.settings = settings
         self.sample_analyser = MCSampleAnalysis(chain_dir or getdist.default_grid_root, analysis_settings)
         self.auto_close = auto_close
         self.fig = None
         self.new_plot()
+
+    def set_default_settings(self):
+        self.settings = copy.deepcopy(default_settings)
+
+    _style_rc = {}
+
+    @classmethod
+    def get_single_plotter(cls, ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False, **kwargs):
+        plotter = cls(**kwargs)
+        plotter.settings.set_with_subplot_size(width_inch)
+        if scaling is not None:
+            plotter.settings.scaling = scaling
+        plotter.settings.fig_width_inch = width_inch
+        if not kwargs.get('settings') and rc_sizes:
+            plotter.settings.rc_sizes()
+        plotter.make_figure(1, xstretch=1. / ratio)
+        return plotter
+
+    @classmethod
+    def get_subplot_plotter(cls, subplot_size=2, width_inch=None, scaling=True, rc_sizes=False, **kwargs):
+        plotter = cls(**kwargs)
+        plotter.settings.set_with_subplot_size(subplot_size)
+        if scaling is not None:
+            plotter.settings.scaling = scaling
+        if width_inch:
+            plotter.settings.fig_width_inch = width_inch
+            if not kwargs.get('settings') and rc_sizes:
+                plotter.settings.rc_sizes()
+        return plotter
 
     def __del__(self):
         if self.auto_close and self.fig:
@@ -932,9 +957,8 @@ class GetDistPlotter(_BaseObject):
                 _, texs = samples.getLatex([param], title_limit)
                 caption = texs[0]
             if '---' not in caption:
-                ax.set_title('$' + caption + '$',
-                             fontsize=self._scaled_fontsize(self.settings.title_limit_fontsize,
-                                                            self.settings.axes_fontsize))
+                ax.set_title('$' + caption + '$', fontsize=self._scaled_fontsize(self.settings.title_limit_fontsize,
+                                                                                 self.settings.axes_fontsize))
 
         return density.bounds()
 
@@ -1777,8 +1801,7 @@ class GetDistPlotter(_BaseObject):
                 legend_loc = self.settings.figure_legend_loc
             else:
                 legend_loc = self.settings.legend_loc
-        if legend_ncol is None:
-            legend_ncol = self.settings.figure_legend_ncol
+        legend_ncol = legend_ncol or self.settings.figure_legend_ncol or 1
         if colored_text is None:
             colored_text = self.settings.legend_colored_text
         lines = []
@@ -1891,8 +1914,7 @@ class GetDistPlotter(_BaseObject):
         if has_legend:
             self.extra_artists = [self.add_legend(legend_labels,
                                                   legend_loc or self.settings.figure_legend_loc, line_offset,
-                                                  legend_ncol or self.settings.figure_legend_ncol,
-                                                  label_order=label_order, figure=True,
+                                                  legend_ncol, label_order=label_order, figure=True,
                                                   figure_legend_outside=not no_extra_legend_space, **legend_args)]
         self._subplots_adjust()
 
@@ -2443,7 +2465,8 @@ class GetDistPlotter(_BaseObject):
             args['borderaxespad'] = 0
 
         self.finish_plot(labels, label_order=label_order,
-                         legend_ncol=legend_ncol or (None if upper_roots is None else len(labels)),
+                         legend_ncol=legend_ncol or self.settings.figure_legend_ncol or (
+                             None if upper_roots is None else len(labels)),
                          legend_loc=legend_loc, no_extra_legend_space=upper_roots is None, no_tight=title_limit,
                          **args)
 
@@ -2547,7 +2570,7 @@ class GetDistPlotter(_BaseObject):
         if roots:
             legend_labels = self._default_legend_labels(legend_labels, roots)
         self.finish_plot(legend_labels=legend_labels, label_order=label_order,
-                         legend_ncol=legend_ncol or len(legend_labels))
+                         legend_ncol=legend_ncol or self.settings.figure_legend_ncol or len(legend_labels))
         return ax_arr
 
     def rotate_xticklabels(self, ax=None, rotation=90, labelsize=None):
@@ -2969,3 +2992,73 @@ class GetDistPlotter(_BaseObject):
         :return: :class:`~.mcsamples.MCSamples` for the given root name
         """
         return self.sample_analyser.samples_for_root(root, file_root, cache, settings)
+
+
+style_name = 'default'
+
+
+class StyleManager(object):
+    def __init__(self):
+        self._plot_styles = {style_name: GetDistPlotter}
+        self.active_style = style_name
+        self._orig_rc = None
+
+    def active_class(self, style=None):
+        if style:
+            self.set_active_style(style)
+        return self._plot_styles[self.active_style]
+
+    def set_active_style(self, name=None):
+        name = name or style_name
+        old_style = self.active_style
+        if name != self.active_style:
+            if name not in self._plot_styles:
+                raise ValueError("Unknown style %s. Make sure you have imported the relevant style module." % name)
+            if self._orig_rc is None:
+                self._orig_rc = rcParams.copy()
+            else:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    rcParams.clear()
+                    rcParams.update(self._orig_rc)
+
+            self.active_style = name
+            rcParams.update(self._plot_styles[name]._style_rc)
+            if name == style_name:
+                self._orig_rc = None
+        return old_style
+
+    def add_plotter_style(self, name, cls, activate=False):
+        self._plot_styles[name] = cls
+        if activate:
+            self.set_active_style(name)
+
+
+_style_manager = StyleManager()
+
+
+def set_active_style(name=None):
+    """
+    Set an active style name. Each style name is associated with a :class:`~getdist.plots.GetDistPlotter` type
+    used to generate plots, with optional custom plot settings and rcParams.
+    The corresponding style module must have been loaded before using this.
+
+    Note that because style modules can change rcParams, which is a global parameter,
+    in general style settings are changed globally until changed back. But if your style does not change rcParams
+    then you can also just pass a style name parameter when you make a plot instance.
+
+    :param name: name of the style, or none to revert to default
+    :return:  the previously active style name
+    """
+    return _style_manager.set_active_style(name)
+
+
+def add_plotter_style(name, cls, activate=False):
+    """
+    add a default plotting style, consistenting of style name and a class type to use when making plotter instances
+
+    :param name: name for the style
+    :param cls: a class inherited from :class:`~getdist.plots.GetDistPlotter`
+    :param activate: whether to make it the active style
+    """
+    _style_manager.add_plotter_style(name, cls, activate)

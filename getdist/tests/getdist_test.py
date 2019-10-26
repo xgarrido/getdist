@@ -253,6 +253,29 @@ class GetDistTest(unittest.TestCase):
                     self.assertTrue(g.subplots[i, j].get_ylim() == g.subplots[j, i].get_xlim())
                     self.assertTrue(g.subplots[i, j].get_xlim() == g.subplots[j, j].get_xlim())
 
+    def test_styles(self):
+        from getdist.styles.tab10 import style_name as tab10
+        from getdist.styles.planck import style_name as planck
+        from matplotlib import rcParams
+        tmp = rcParams.copy()
+        plots.set_active_style(tab10)
+        g = plots.get_single_plotter()
+        self.assertEqual(g.settings.line_styles.name, 'tab10')
+        plots.set_active_style(planck)
+        g = plots.get_single_plotter()
+        self.assertTrue(g.settings.prob_y_ticks)
+        plots.set_active_style(tab10)
+        g = plots.get_single_plotter()
+        self.assertEqual(g.settings.line_styles.name, 'tab10')
+        plots.set_active_style()
+        g = plots.get_single_plotter()
+        self.assertFalse(g.settings.prob_y_ticks)
+        g = plots.get_single_plotter(style='tab10')
+        self.assertEqual(g.settings.line_styles.name, 'tab10')
+        plots.set_active_style('planck')
+        plots.set_active_style()
+        self.assertDictEqual(tmp, rcParams)
+
 
 class UtilTest(unittest.TestCase):
     """test bounded and unbounded tick assignment"""
@@ -328,7 +351,7 @@ class UtilTest(unittest.TestCase):
                     for prune in [True, False]:
                         fig, ax = self._plot_with_params(scale, x, off, prune)
                         pdf.savefig(fig, bbox_inches='tight')
-                        if not len(ax.get_xticks()) or x >= 2 and len(ax.get_xticks()) < 2 and scale > 1e-4:
+                        if not len(ax.get_xticks()) or x >= 2 > len(ax.get_xticks()) and scale > 1e-4:
                             fails.append([scale, x, off, prune])
                         plt.close(fig)
                     if local:

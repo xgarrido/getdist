@@ -26,7 +26,7 @@ class BoundedMaxNLocator(ticker.MaxNLocator):
     # Also tries to correct for long tick labels and avoid large tick-free gaps at ends of axes, and to get at
     # least two ticks where possible (even if it requires odd spacing or off-phase ticks)
 
-    def __init__(self, nbins='auto', prune=True, step_groups=[[1, 2, 5, 10], [2.5, 3, 4, 6, 8], [1.5, 7, 9]]):
+    def __init__(self, nbins='auto', prune=True, step_groups=([1, 2, 5, 10], [2.5, 3, 4, 6, 8], [1.5, 7, 9])):
         self.bounded_prune = prune
         self._step_groups = [_staircase(np.array(steps), np.array(steps)) for steps in step_groups]
         self._offsets = []

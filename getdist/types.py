@@ -28,7 +28,7 @@ def texEscapeText(string):
 
 
 def times_ten_power(exponent):
-    return '\cdot 10^{%d}' % exponent
+    return r'\cdot 10^{%d}' % exponent
 
 
 def float_to_decimal(f):
@@ -378,7 +378,7 @@ class ResultTable(object):
     def endTable(self):
         self.lines.append(self.format.endTable())
 
-    def tableTex(self, document=False, latex_preamble=None, packages=['amsmath', 'amssymb', 'bm']):
+    def tableTex(self, document=False, latex_preamble=None, packages=('amsmath', 'amssymb', 'bm')):
         """
         Get the latex string for the table
 
