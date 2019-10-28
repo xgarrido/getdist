@@ -338,10 +338,10 @@ def getdist_gui():
         if os.path.exists(path):
             if subprocess.call(["/usr/bin/open", "-a", path], env=os.environ):
                 print("Error running 'GetDist GUI.app'. This may be a Catalina issue, any ideas?\n"
-                      "Attempting to run directly, however menus may not work.")
-                run_gui()
+                      "Attempting to run script directly, using non-Mac menus.")
+                run_gui(unified_menu_on_mac=False)
         else:
             print('GetDist GUI.app not found; package not installed or no valid PySide/PySide2')
-            run_gui()
+            run_gui(unified_menu_on_mac=False)
     else:
         run_gui()
