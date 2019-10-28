@@ -3055,7 +3055,7 @@ def set_active_style(name=None):
 
 def add_plotter_style(name, cls, activate=False):
     """
-    add a default plotting style, consistenting of style name and a class type to use when making plotter instances
+    Add a plotting style, consistenting of style name and a class type to use when making plotter instances.
 
     :param name: name for the style
     :param cls: a class inherited from :class:`~getdist.plots.GetDistPlotter`

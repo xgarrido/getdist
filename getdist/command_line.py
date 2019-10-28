@@ -14,7 +14,7 @@ def runScript(fname):
 
 
 def getdist_script(args, exit_on_error=True):
-    def doError(msg):
+    def do_error(msg):
         if exit_on_error:
             print(msg)
             sys.exit()
@@ -29,14 +29,14 @@ def getdist_script(args, exit_on_error=True):
     no_plots = False
     chain_root = args.chain_root
     if args.ini_file is None and chain_root is None:
-        doError('Must give either a .ini file of parameters or a chain file root name. Run "getdist -h" for help.')
+        do_error('Must give either a .ini file of parameters or a chain file root name. Run "getdist -h" for help.')
     if '.ini' not in args.ini_file and chain_root is None:
         # use default settings acting on chain_root, no plots
         chain_root = args.ini_file
         args.ini_file = getdist.default_getdist_settings
         no_plots = True
     if not os.path.isfile(args.ini_file):
-        doError('Parameter file does not exist: ' + args.ini_file)
+        do_error('Parameter file does not exist: ' + args.ini_file)
     if chain_root and chain_root.endswith('.txt'):
         chain_root = chain_root[:-4]
 
@@ -63,7 +63,7 @@ def getdist_script(args, exit_on_error=True):
     else:
         in_root = ini.params['file_root']
     if not in_root:
-        doError('Chain Root file name not given ')
+        do_error('Chain Root file name not given ')
     rootname = os.path.basename(in_root)
 
     if args.ignore_rows is not None:
@@ -79,7 +79,7 @@ def getdist_script(args, exit_on_error=True):
     mc = MCSamples(in_root, ini=ini, files_are_chains=samples_are_chains, paramNamesFile=paramnames)
 
     if ini.bool('adjust_priors', False) or ini.bool('map_params', False):
-        doError(
+        do_error(
             'To adjust priors or define new parameters, use a separate python script; see the python getdist docs for examples')
 
     plot_ext = ini.string('plot_ext', 'py')
@@ -113,7 +113,7 @@ def getdist_script(args, exit_on_error=True):
     mc.rootdirname = rootdirname
 
     if 'do_minimal_1d_intervals' in ini.params:
-        doError('do_minimal_1d_intervals no longer used; set credible_interval_threshold instead')
+        do_error('do_minimal_1d_intervals no longer used; set credible_interval_threshold instead')
 
     line = ini.string('PCA_params', '')
     if line.lower() == 'all':
@@ -123,7 +123,7 @@ def getdist_script(args, exit_on_error=True):
     PCA_num = ini.int('PCA_num', len(PCA_params))
     if PCA_num != 0:
         if PCA_num < 2:
-            doError('Can only do PCA for 2 or more parameters')
+            do_error('Can only do PCA for 2 or more parameters')
         PCA_func = ini.string('PCA_func', '')
         # Characters representing functional mapping
         if PCA_func == '':
@@ -310,9 +310,11 @@ def getdist_command(args=None):
     parser.add_argument('ini_file', nargs='?',
                         help='.ini file with analysis settings (optional, if omitted uses defaults)')
     parser.add_argument('chain_root', nargs='?',
-                        help='Root name of chain to analyse (e.g. chains/test), required unless file_root specified in ini_file')
+                        help='Root name of chain to analyse (e.g. chains/test), required unless file'
+                             '_root specified in ini_file')
     parser.add_argument('--ignore_rows',
-                        help='set initial fraction of chains to cut as burn in (fraction of total rows, or >1 number of rows); overrides any value in ini_file if set')
+                        help='set initial fraction of chains to cut as burn in (fraction of total rows'
+                             ', or >1 number of rows); overrides any value in ini_file if set')
     parser.add_argument('--make_param_file',
                         help='Produce a sample distparams.ini file that you can edit and use when running GetDist')
     parser.add_argument('--make_plots', action='store_true', help='Make PDFs from any requested plot script files')
@@ -328,13 +330,16 @@ def getdist_gui():
     from getdist.gui.mainwindow import run_gui
 
     if sys.platform == "darwin":
-        # On Mac need to run .app with pList to get menu name right (and avoid menu bugs)
+        # On Mac need to run .app with plist to get menu name right (and avoid menu bugs)
         import subprocess
         import os
 
         path = os.path.join(os.path.dirname(getdist.gui.__file__), 'GetDist GUI.app')
         if os.path.exists(path):
-            subprocess.call(["/usr/bin/open", "-a", path], env=os.environ)
+            if subprocess.call(["/usr/bin/open", "-a", path], env=os.environ):
+                print("Error running 'GetDist GUI.app'. This may be a Catalina issue, any ideas?\n"
+                      "Attempting to run directly, however menus may not work.")
+                run_gui()
         else:
             print('GetDist GUI.app not found; package not installed or no valid PySide/PySide2')
             run_gui()
