@@ -66,10 +66,15 @@ def loadMCSamples(file_root, ini=None, jobItem=None, no_cache=False, settings={}
     if not files:  # try new Cobaya format
         files = chainFiles(file_root, separator='.')
     path, name = os.path.split(file_root)
-    path = getdist.cache_dir or path
+    if getdist.cache_dir:
+        import hashlib
+        cache_name = name + '_' + hashlib.md5(os.path.abspath(path).encode('utf-8')).hexdigest()[:10]
+        path = getdist.cache_dir
+    else:
+        cache_name = name
     if not os.path.exists(path):
         os.mkdir(path)
-    cachefile = os.path.join(path, name) + '.py_mcsamples'
+    cachefile = os.path.join(path, cache_name) + '.py_mcsamples'
     samples = MCSamples(file_root, jobItem=jobItem, ini=ini, settings=settings)
     if os.path.isfile(file_root + '.paramnames'):
         allfiles = files + [file_root + '.ranges', file_root + '.paramnames', file_root + '.properties.ini']

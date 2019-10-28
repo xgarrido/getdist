@@ -2131,7 +2131,6 @@ def run_gui(unified_menu_on_mac=True):
 
     sys.argv[0] = 'GetDist GUI'
     app = QApplication(sys.argv)
-    # app.setStyle('Fusion')
     app.setApplicationName("GetDist GUI")
     mainWin = MainWindow(app, ini=args.ini, unified_menu_on_mac=unified_menu_on_mac)
     mainWin.show()

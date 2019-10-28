@@ -6,6 +6,7 @@ from getdist.paramnames import ParamInfo, ParamNames
 from getdist.chains import WeightedSamples
 from getdist.mcsamples import MCSamples, loadMCSamples
 import os
+import sys
 
 
 def get_defaults_file(name='analysis_defaults.ini'):
@@ -28,10 +29,22 @@ def get_config():
         return IniFile()
 
 
+def _get_cache_dir():
+    if sys.platform == "darwin":
+        tmp = os.path.expanduser('~/Library/Caches')
+    else:
+        import tempfile
+        tmp = tempfile.gettempdir()
+    tmp = os.path.join(tmp, 'getdist_cache')
+    if not os.path.exists(tmp):
+        os.mkdir(tmp)
+    return tmp
+
+
 config_ini = get_config()
 default_grid_root = config_ini.string('default_grid_root', '')
 output_base_dir = config_ini.string('output_base_dir', '')
-cache_dir = config_ini.string('cache_dir', '')
+cache_dir = config_ini.string('cache_dir', '') or _get_cache_dir()
 default_getdist_settings = config_ini.string('default_getdist_settings', get_defaults_file())
 distparam_template = config_ini.string('distparam_template', get_defaults_file('distparam_template.ini'))
 use_plot_data = False  # for legacy compatibility
