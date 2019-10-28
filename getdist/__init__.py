@@ -5,7 +5,6 @@ from getdist.inifile import IniFile
 from getdist.paramnames import ParamInfo, ParamNames
 from getdist.chains import WeightedSamples
 from getdist.mcsamples import MCSamples, loadMCSamples
-import getdist.styles.tab10
 import os
 
 

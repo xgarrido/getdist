@@ -1565,7 +1565,7 @@ class GetDistPlotter(_BaseObject):
             if label_right:
                 ax.yaxis.set_label_position("right")
                 ax.yaxis.tick_right()
-            ax.set_ylabel(lab)
+            ax.set_ylabel(lab, fontsize=self._scaled_fontsize(self.settings.axes_labelsize))
         if no_ytick or not self.settings.prob_y_ticks:
             ax.tick_params(left=False, labelleft=False)
         elif no_ylabel:
@@ -1806,16 +1806,23 @@ class GetDistPlotter(_BaseObject):
             colored_text = self.settings.legend_colored_text
         lines = []
         if len(self.contours_added) == 0:
-            for i in enumerate(legend_labels):
-                args = self.lines_added.get(i[0]) or self._get_line_styles(i[0] + line_offset)
+            for i in range(len(legend_labels)):
+                args = self.lines_added.get(i)
+                if not args:
+                    if not figure:
+                        ax_lines = self.get_axes(ax).lines
+                        if len(ax_lines) > i:
+                            lines.append(ax_lines[i])
+                            continue
+                    args = self._get_line_styles(i + line_offset)
                 args.pop('filled', None)
                 lines.append(matplotlib.lines.Line2D([0, 1], [0, 1], **args))
         else:
             lines = self.contours_added
         args = kwargs.copy()
         args['ncol'] = legend_ncol
-        args['prop'] = {
-            'size': self._scaled_fontsize(fontsize or self.settings.legend_fontsize or self.settings.axes_labelsize)}
+        args['prop'] = {'size': self._scaled_fontsize(fontsize or self.settings.legend_fontsize
+                                                      or self.settings.axes_labelsize)}
         if colored_text:
             args['handlelength'] = 0
             args['handletextpad'] = 0
@@ -2237,8 +2244,8 @@ class GetDistPlotter(_BaseObject):
                         each parameter plotted
         :param marker_args: dictionary of optional arguments for adding markers (passed to axvline and/or axhline)
         :param param_limits: a dictionary holding a mapping from parameter names to axis limits for that parameter
-        :param kwargs: optional keyword arguments for :func:`~GetDistPlotter.plot_2d` or
-                      :func:`~GetDistPlotter.plot_3d` (lower triangle only)
+        :param kwargs: optional keyword arguments for :func:`~GetDistPlotter.plot_2d`
+                       or :func:`~GetDistPlotter.plot_3d` (lower triangle only)
 
         .. plot::
            :include-source:

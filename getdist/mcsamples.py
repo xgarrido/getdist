@@ -1202,7 +1202,8 @@ class MCSamples(Chains):
 
         par.kde_h = h
         m = self.mult_bias_correction_order if mult_bias_correction_order is None else mult_bias_correction_order
-        if kernel_order > 1: m = max(m, 1)
+        if kernel_order > 1:
+            m = max(m, 1)
         if m:
             # higher order method
             # e.g.  http://biomet.oxfordjournals.org/content/82/2/327.full.pdf+html
