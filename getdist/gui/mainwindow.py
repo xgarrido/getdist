@@ -94,14 +94,12 @@ class RootListWidget(QListWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, app, ini=None, base_dir=None, unified_menu_on_mac=True):
+    def __init__(self, app, ini=None, base_dir=None):
         """
         Initialize of GUI components.
         """
         super(MainWindow, self).__init__()
 
-        if not unified_menu_on_mac and pyside_version == 2:
-            self.setUnifiedTitleAndToolBarOnMac(False)
         self.setWindowTitle("GetDist GUI")
         self.setWindowIcon(self._icon('Icon', False))
 
@@ -2111,8 +2109,7 @@ class DialogConfigSettings(DialogSettings):
         self.parent().configSettingsChanged(self.getDict())
 
 
-def run_gui(unified_menu_on_mac=True):
-    # Menus only work if run from a .app bundle on Mac, turn off unified menus for scripts (unified_menu_on_mac=False)
+def run_gui():
     import argparse
 
     parser = argparse.ArgumentParser(description='GetDist GUI')
@@ -2132,11 +2129,11 @@ def run_gui(unified_menu_on_mac=True):
     sys.argv[0] = 'GetDist GUI'
     app = QApplication(sys.argv)
     app.setApplicationName("GetDist GUI")
-    mainWin = MainWindow(app, ini=args.ini, unified_menu_on_mac=unified_menu_on_mac)
+    mainWin = MainWindow(app, ini=args.ini)
     mainWin.show()
     mainWin.raise_()
     sys.exit(app.exec_())
 
 
 if __name__ == "__main__":
-    run_gui(unified_menu_on_mac=False)
+    run_gui()
