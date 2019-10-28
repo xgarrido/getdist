@@ -341,7 +341,8 @@ def getdist_gui():
                       "Attempting to run script directly, using non-Mac menus.")
                 run_gui(unified_menu_on_mac=False)
         else:
-            print('GetDist GUI.app not found; package not installed or no valid PySide/PySide2')
+            print('GetDist GUI.app not found; getdist package not installed '
+                  'or no valid PySide/PySide2 found when setup was run.')
             run_gui(unified_menu_on_mac=False)
     else:
         run_gui()
