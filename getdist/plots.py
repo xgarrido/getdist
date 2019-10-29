@@ -295,15 +295,15 @@ def get_plotter(style=None, **kwargs):
     return _style_manager.active_class(style)(**kwargs)
 
 
-def get_single_plotter(ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False, style=None, **kwargs):
+def get_single_plotter(ratio=None, width_inch=None, scaling=None, rc_sizes=False, style=None, **kwargs):
     """
     Get a :class:`~.plots.GetDistPlotter` for making a single plot of fixed width.
 
     For a half-column plot for a paper use width_inch=3.464.
 
     Use this or :func:`~get_subplot_plotter` to make a :class:`~.plots.GetDistPlotter` instance for making plots.
-    If you want customized sizes or styles for all plots, you can make a new module
-    defining these functions, and then use it exactly as a replacement for getdist.plots.
+    This function will use the active style by default, which will determine defaults for the various optional
+    parameters (see :func:`~set_active_style`).
 
     :param ratio: The ratio between height and width.
     :param width_inch:  The width of the plot in inches
@@ -318,7 +318,7 @@ def get_single_plotter(ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False,
                                                                  rc_sizes=rc_sizes, **kwargs)
 
 
-def get_subplot_plotter(subplot_size=2, width_inch=None, scaling=None, rc_sizes=False,
+def get_subplot_plotter(subplot_size=None, width_inch=None, scaling=None, rc_sizes=False,
                         subplot_size_ratio=None, style=None, **kwargs):
     """
     Get a :class:`~.plots.GetDistPlotter` for making an array of subplots.
@@ -327,8 +327,9 @@ def get_subplot_plotter(subplot_size=2, width_inch=None, scaling=None, rc_sizes=
     and sets default font sizes etc. from matplotlib's default rcParams.
 
     Use this or :func:`~get_single_plotter` to make a :class:`~.plots.GetDistPlotter` instance for making plots.
-    If you want customized sizes or styles for all plots, you can make a new module
-    defining these functions, and then use it exactly as a replacement for getdist.plots.
+    This function will use the active style by default, which will determine defaults for the various optional
+    parameters (see :func:`~set_active_style`).
+
 
     :param subplot_size: The size of each subplot in inches
     :param width_inch: Optional total width in inches
@@ -670,7 +671,9 @@ class GetDistPlotter(_BaseObject):
     _style_rc = {}
 
     @classmethod
-    def get_single_plotter(cls, ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False, **kwargs):
+    def get_single_plotter(cls, scaling=None, rc_sizes=False, **kwargs):
+        ratio = kwargs.pop("ratio", None) or 3 / 4.
+        width_inch = kwargs.pop("width_inch", None) or 6
         plotter = cls(**kwargs)
         plotter.settings.set_with_subplot_size(width_inch, size_ratio=ratio)
         if scaling is not None:
@@ -682,10 +685,10 @@ class GetDistPlotter(_BaseObject):
         return plotter
 
     @classmethod
-    def get_subplot_plotter(cls, subplot_size=2, width_inch=None, scaling=True, rc_sizes=False,
+    def get_subplot_plotter(cls, subplot_size=None, width_inch=None, scaling=True, rc_sizes=False,
                             subplot_size_ratio=None, **kwargs):
         plotter = cls(**kwargs)
-        plotter.settings.set_with_subplot_size(subplot_size, size_ratio=subplot_size_ratio)
+        plotter.settings.set_with_subplot_size(subplot_size or 2, size_ratio=subplot_size_ratio)
         if scaling is not None:
             plotter.settings.scaling = scaling
         if width_inch:
@@ -2297,6 +2300,8 @@ class GetDistPlotter(_BaseObject):
         self.make_figure(nx=plot_col, ny=plot_col, sharex=self.settings.no_triangle_axis_labels,
                          sharey=self.settings.no_triangle_axis_labels)
         lims = dict()
+        if kwargs.pop('filled_compare', False):
+            filled = True
 
         def _axis_y_limit_changed(_ax):
             _lims = _ax.get_ylim()
@@ -3074,13 +3079,17 @@ _style_manager = StyleManager()
 
 def set_active_style(name=None):
     """
-    Set an active style name. Each style name is associated with a :class:`~getdist.plots.GetDistPlotter` type
+    Set an active style name. Each style name is associated with a :class:`~getdist.plots.GetDistPlotter` class
     used to generate plots, with optional custom plot settings and rcParams.
     The corresponding style module must have been loaded before using this.
 
     Note that because style modules can change rcParams, which is a global parameter,
     in general style settings are changed globally until changed back. But if your style does not change rcParams
     then you can also just pass a style name parameter when you make a plot instance.
+
+    The supplied example styles are 'default', 'tab10' (default matplotlib color scheme) and 'planck' (more
+    compilcated example using latex and various customized settings). Use :func:`add_plotter_style` to add
+    your own style class.
 
     :param name: name of the style, or none to revert to default
     :return:  the previously active style name
