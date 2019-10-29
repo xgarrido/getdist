@@ -317,7 +317,7 @@ class UtilTest(unittest.TestCase):
         g = plots.get_subplot_plotter(auto_close=True)
         g.settings.prob_label = r'$P$'
         g.settings.prob_y_ticks = True
-        g.plot_1d(samples, 'x')
+        g.plot_1d(samples, 'x', _no_finish=True)
         ax = g.get_axes()
         self.assertTrue(np.allclose(ax.get_yticks(), [0, 0.5, 1]), "Wrong probability ticks")
 
