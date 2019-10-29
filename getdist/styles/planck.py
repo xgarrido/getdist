@@ -40,14 +40,17 @@ class PlanckPlotter(plots.GetDistPlotter):
         self.settings = s
 
     @classmethod
-    def get_single_plotter(cls, ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False, **kwargs):
-        return super(PlanckPlotter, cls).get_single_plotter(ratio, scaling=False if scaling is None else scaling,
-                                                            width_inch=width_inch, rc_sizes=True, **kwargs)
+    def get_single_plotter(cls, **kwargs):
+        scaling = kwargs.pop('scaling', None)
+        kwargs.pop('rc_sizes', None)
+        return super(PlanckPlotter, cls).get_single_plotter(scaling=scaling if scaling is not None else False,
+                                                            rc_sizes=True, **kwargs)
 
     @classmethod
-    def get_subplot_plotter(cls, subplot_size=2, width_inch=None, scaling=None, rc_sizes=False, **kwargs):
-        return super(PlanckPlotter, cls).get_subplot_plotter(subplot_size=subplot_size, width_inch=width_inch,
-                                                             scaling=False if scaling is None else scaling,
+    def get_subplot_plotter(cls, **kwargs):
+        scaling = kwargs.pop('scaling', None)
+        kwargs.pop('rc_sizes', None)
+        return super(PlanckPlotter, cls).get_subplot_plotter(scaling=scaling if scaling is not None else False,
                                                              rc_sizes=True, **kwargs)
 
 

@@ -1398,6 +1398,7 @@ class MainWindow(QMainWindow):
         """
         if self.updating:
             return
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         self.showMessage("Generating plot....")
         actionText = "plot"
         try:
@@ -1419,7 +1420,6 @@ class MainWindow(QMainWindow):
             items_x = self.getXParams()
             items_y = self.getYParams()
             self.plotter.settings = copy.copy(self.default_plot_settings)
-            self.plotter.settings.set_with_subplot_size(3.5)
             self.plotter.settings.__dict__.update(self.custom_plot_settings)
 
             script = "from getdist import plots\n"
@@ -1475,14 +1475,21 @@ class MainWindow(QMainWindow):
 
             logging.debug("Plotting with roots = %s" % str(roots))
 
-            height = self.plotWidget.height() * 0.75
-            width = self.plotWidget.width() * 0.75
+            height = self.plotWidget.height() / self.logicalDpiX()
+            width = self.plotWidget.width() / self.logicalDpiX()
 
-            def setSizeQT(sz):
-                self.plotter.settings.set_with_subplot_size(max(1.5, sz / 80.))
-
-            def setSizeForN(n):
-                setSizeQT(min(height, width) / max(n, 2))
+            def setSizeForN(cols, rows):
+                if self.plotter.settings.fig_width_inch is not None:
+                    self.plotter.settings.fig_width_inch = min(self.plotter.settings.fig_width_inch, width)
+                else:
+                    self.plotter.settings.fig_width_inch = min(6 * cols, width)
+                if self.plotter.settings.subplot_size_ratio:
+                    self.plotter.settings.fig_width_inch = min(self.plotter.settings.fig_width_inch,
+                                                               height * cols / rows /
+                                                               self.plotter.settings.subplot_size_ratio)
+                else:
+                    self.plotter.settings.subplot_size_ratio = min(1.5, height * cols /
+                                                                   (self.plotter.settings.fig_width_inch * rows))
 
             def make_space_for_legend():
                 if len(roots) > 1 and not self.plotter.settings.constrained_layout:
@@ -1507,7 +1514,7 @@ class MainWindow(QMainWindow):
                         param_3d = color_param
                     else:
                         param_3d = None
-                    setSizeForN(len(params))
+                    setSizeForN(len(params), len(params))
                     self.plotter.triangle_plot(roots, params, plot_3d_with_param=param_3d, filled=filled,
                                                shaded=shaded)
                     self.updatePlot()
@@ -1526,7 +1533,7 @@ class MainWindow(QMainWindow):
                 params = items_x
                 logging.debug("1D plot with params = %s" % str(params))
                 script += "params=%s\n" % str(params)
-                setSizeForN(round(np.sqrt(len(params) / 1.4)))
+                setSizeForN(*self.plotter.default_col_row(len(params)))
                 if len(roots) > 3:
                     ncol = 2
                 else:
@@ -1544,7 +1551,7 @@ class MainWindow(QMainWindow):
                     script += "yparams = %s\n" % str(items_y)
                     logging.debug("Rectangle plot with xparams=%s and yparams=%s" % (str(items_x), str(items_y)))
 
-                    setSizeQT(min(height / len(items_y), width / len(items_x)))
+                    setSizeForN(len(items_x), len(items_y))
                     self.plotter.rectangle_plot(items_x, items_y, roots=roots, filled=filled)
                     make_space_for_legend()
                     self.updatePlot()
@@ -1555,16 +1562,16 @@ class MainWindow(QMainWindow):
                     single = False
                     if len(items_x) == 1 and len(items_y) == 1:
                         pairs = [[items_x[0], items_y[0]]]
-                        setSizeQT(min(height, width))
+                        setSizeForN(1, 1)
                         single = self.checkInsideLegend.checkState() == Qt.Checked
                     elif len(items_x) == 1 and len(items_y) > 1:
                         item_x = items_x[0]
                         pairs = list(zip([item_x] * len(items_y), items_y))
-                        setSizeForN(round(np.sqrt(len(pairs) / 1.4)))
+                        setSizeForN(*self.plotter.default_col_row(len(pairs)))
                     elif len(items_x) > 1 and len(items_y) == 1:
                         item_y = items_y[0]
                         pairs = list(zip(items_x, [item_y] * len(items_x)))
-                        setSizeForN(round(np.sqrt(len(pairs) / 1.4)))
+                        setSizeForN(*self.plotter.default_col_row(len(pairs)))
                     else:
                         pairs = []
                     if filled or line:
@@ -1578,8 +1585,6 @@ class MainWindow(QMainWindow):
                             labels = self.plotter._default_legend_labels(None, roots)
                             self.plotter.add_legend(labels)
                             script += 'g.add_legend(%s)\n' % labels
-                            if not self.plotter.settings.constrained_layout:
-                                self.plotter.fig.tight_layout()
                         else:
                             script += "pairs = %s\n" % pairs
                             self.plotter.plots_2d(roots, param_pairs=pairs, filled=filled, shaded=shaded)
@@ -1596,7 +1601,7 @@ class MainWindow(QMainWindow):
                         if len(sets) == 1:
                             script += "g.plot_3d(roots, %s)\n" % triplets[0]
                             self.plotter.settings.scatter_size = 6
-                            self.plotter.make_figure(1, ystretch=0.75)
+                            self.plotter.make_figure()
                             self.plotter.plot_3d(roots, sets[0])
                         else:
                             script += "sets = [" + ",".join(triplets) + "]\n"
@@ -1626,6 +1631,7 @@ class MainWindow(QMainWindow):
             self.errorReport(e, caption=actionText)
         finally:
             self.showMessage()
+            QApplication.restoreOverrideCursor()
 
     def updatePlot(self):
         if self.plotter.fig is None:
@@ -1648,10 +1654,7 @@ class MainWindow(QMainWindow):
                 self.plotWidget.layout().addWidget(self.toolbar)
             self.plotWidget.layout().addWidget(self.canvas)
             self.plotWidget.layout()
-            # self.canvas.draw()
             self.plotWidget.show()
-
-    # Edit script
 
     def tabChanged(self, index):
         """
@@ -1712,6 +1715,7 @@ class MainWindow(QMainWindow):
         oldrc = matplotlib.rcParams.copy()
         plots.default_settings = plots.GetDistPlotSettings()
         self._set_rc(self.orig_rc)
+        QApplication.setOverrideCursor(Qt.WaitCursor)
         self.showMessage("Rendering plot....")
         try:
             script_exec = self.script_edit
@@ -1736,6 +1740,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self.errorReport(e, caption="Plot script")
         finally:
+            QApplication.restoreOverrideCursor()
             plots.default_settings = oldset
             plots.set_active_style(old_style)
             self._set_rc(oldrc)

@@ -106,6 +106,7 @@ class GetDistPlotSettings(_BaseObject):
                         each element is either a color, or a tuple of values for different contour levels.
     :ivar solid_contour_palefactor: factor by which to make 2D outer filled contours paler when only specifying
                                     one contour color
+    :ivar subplot_size_ratio: ratio of width and height of subplots
     :ivar tight_layout: use tight_layout to layout, avoid overlaps and remove white space; if it doesn't work
                         try constrained_layout. If true it is applied when calling :func:`~GetDistPlotter.finish_plot`
                         (which is called automatically by plots_xd(), triangle_plot and rectangle_plot).
@@ -174,6 +175,7 @@ class GetDistPlotSettings(_BaseObject):
         self.colorbar_axes_fontsize = 11
 
         self.subplot_size_inch = subplot_size_inch
+        self.subplot_size_ratio = None
 
         self.param_names_for_labels = None
 
@@ -243,17 +245,19 @@ class GetDistPlotSettings(_BaseObject):
             return linewidth
         return max(0.6, linewidth * ax_size / self.scaling_reference_size)
 
-    def set_with_subplot_size(self, size_inch=3.5, size_mm=None):
+    def set_with_subplot_size(self, size_inch=3.5, size_mm=None, size_ratio=None):
         """
         Sets the subplot's size, either in inches or in millimeters.
         If both are set, uses millimeters.
 
         :param size_inch: The size to set in inches; is ignored if size_mm is set.
         :param size_mm: None if not used, otherwise the size in millimeters we want to set for the subplot.
+        :param size_ratio: ratio of height to width of subplots
         """
         if size_mm:
             size_inch = size_mm * 0.0393700787
         self.subplot_size_inch = size_inch
+        self.subplot_size_ratio = size_ratio
 
     def rc_sizes(self, axes_fontsize=None, lab_fontsize=None, legend_fontsize=None):
         """
@@ -314,7 +318,8 @@ def get_single_plotter(ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False,
                                                                  rc_sizes=rc_sizes, **kwargs)
 
 
-def get_subplot_plotter(subplot_size=2, width_inch=None, scaling=None, rc_sizes=False, style=None, **kwargs):
+def get_subplot_plotter(subplot_size=2, width_inch=None, scaling=None, rc_sizes=False,
+                        subplot_size_ratio=None, style=None, **kwargs):
     """
     Get a :class:`~.plots.GetDistPlotter` for making an array of subplots.
 
@@ -329,12 +334,14 @@ def get_subplot_plotter(subplot_size=2, width_inch=None, scaling=None, rc_sizes=
     :param width_inch: Optional total width in inches
     :param scaling: whether to scale down fonts and line widths for small sizes (relative to reference sizes, 3.5 inch)
     :param rc_sizes: set default font sizes from matplotlib's current rcParams if no explicit settings passed in kwargs
+    :param subplot_size_ratio: ratio of height to width for subplots
     :param style: name of a plotter style (associated with custom plotter class/settings), otherwise uses active
     :param kwargs: arguments for :class:`GetDistPlotter`
     :return: The :class:`GetDistPlotter` instance
     """
     return _style_manager.active_class(style).get_subplot_plotter(subplot_size=subplot_size, width_inch=width_inch,
-                                                                  scaling=scaling, rc_sizes=rc_sizes, **kwargs)
+                                                                  scaling=scaling, rc_sizes=rc_sizes,
+                                                                  subplot_size_ratio=subplot_size_ratio, **kwargs)
 
 
 # Aliases for backwards compatibility
@@ -665,19 +672,20 @@ class GetDistPlotter(_BaseObject):
     @classmethod
     def get_single_plotter(cls, ratio=3 / 4., width_inch=6, scaling=None, rc_sizes=False, **kwargs):
         plotter = cls(**kwargs)
-        plotter.settings.set_with_subplot_size(width_inch)
+        plotter.settings.set_with_subplot_size(width_inch, size_ratio=ratio)
         if scaling is not None:
             plotter.settings.scaling = scaling
         plotter.settings.fig_width_inch = width_inch
         if not kwargs.get('settings') and rc_sizes:
             plotter.settings.rc_sizes()
-        plotter.make_figure(1, xstretch=1. / ratio)
+        plotter.make_figure(1)
         return plotter
 
     @classmethod
-    def get_subplot_plotter(cls, subplot_size=2, width_inch=None, scaling=True, rc_sizes=False, **kwargs):
+    def get_subplot_plotter(cls, subplot_size=2, width_inch=None, scaling=True, rc_sizes=False,
+                            subplot_size_ratio=None, **kwargs):
         plotter = cls(**kwargs)
-        plotter.settings.set_with_subplot_size(subplot_size)
+        plotter.settings.set_with_subplot_size(subplot_size, size_ratio=subplot_size_ratio)
         if scaling is not None:
             plotter.settings.scaling = scaling
         if width_inch:
@@ -1530,6 +1538,7 @@ class GetDistPlotter(_BaseObject):
         plotparam = None
         plotroot = None
         _ret_range = kwargs.pop('_ret_range', None)
+        _no_finish = kwargs.pop('_no_finish', False)
         line_args = self._make_line_args(len(roots), **kwargs)
         xmin, xmax = None, None
         for i, root in enumerate(roots):
@@ -1577,6 +1586,8 @@ class GetDistPlotter(_BaseObject):
             ax.set_yticks(ticks[1:])
         if _ret_range:
             return xmin, xmax
+        elif not _no_finish and len(self.fig.axes) == 1:
+            self.finish_plot()
 
     def plot_2d(self, roots, param1=None, param2=None, param_pair=None, shaded=False,
                 add_legend_proxy=True, line_offset=0, proxy_root_exclude=(), ax=None, **kwargs):
@@ -1619,6 +1630,7 @@ class GetDistPlotter(_BaseObject):
         if isinstance(param1, (list, tuple)):
             param_pair = param1
             param1 = None
+        _no_finish = kwargs.pop('_no_finish', False)
         param_pair = self.get_param_array(roots[0], param_pair or [param1, param2])
         ax = self.get_axes(ax, pars=param_pair)
         if self.settings.progress:
@@ -1640,7 +1652,22 @@ class GetDistPlotter(_BaseObject):
             kwargs['lims'] = [lim1[0], lim1[1], lim2[0], lim2[1]]
 
         self.set_axes(param_pair, ax=ax, **kwargs)
+        if not _no_finish and len(self.fig.axes) == 1:
+            self.finish_plot()
         return xbounds, ybounds
+
+    def default_col_row(self, nplot=1, nx=None, ny=None):
+        """
+        Get default subplot columns and rows depending on number of subplots.
+
+        :param nplot: total number of subplots
+        :param nx: optional specified number of columns
+        :param ny: optional specified number of rows
+        :return: n_cols, n_rows
+        """
+        plot_col = nx or int(round(np.sqrt(nplot / 1.4)))
+        plot_row = ny or (nplot + plot_col - 1) // plot_col
+        return plot_col, plot_row
 
     def make_figure(self, nplot=1, nx=None, ny=None, xstretch=1.0, ystretch=1.0, sharex=False, sharey=False):
         """
@@ -1650,20 +1677,17 @@ class GetDistPlotter(_BaseObject):
         :param nx: number of subplots in each row
         :param ny: number of subplots in each column
         :param xstretch: The parameter of how much to stretch the width, 1 is default
-        :param ystretch: The parameter of how much to stretch the height, 1 is default
+        :param ystretch: The parameter of how much to stretch the height, 1 is default. Note this multiplies
+                         settings.subplot_size_ratio before determining actual stretch.
         :param sharex: no vertical space between subplots
         :param sharey: no horizontal space between subplots
         :return: The plot_col, plot_row numbers of subplots for the figure
         """
         self.new_plot()
-        if nx is None:
-            self.plot_col = int(round(np.sqrt(nplot / 1.4)))
-        else:
-            self.plot_col = nx
-        if ny is None:
-            self.plot_row = (nplot + self.plot_col - 1) // self.plot_col
-        else:
-            self.plot_row = ny
+        self.plot_col, self.plot_row = self.default_col_row(nplot, nx=nx, ny=ny)
+
+        if self.settings.subplot_size_ratio:
+            ystretch = ystretch * self.settings.subplot_size_ratio
         if self.settings.fig_width_inch is not None:
             figsize = (self.settings.fig_width_inch,
                        (self.settings.fig_width_inch * self.plot_row * ystretch) / (self.plot_col * xstretch))
@@ -1901,10 +1925,10 @@ class GetDistPlotter(_BaseObject):
     def finish_plot(self, legend_labels=None, legend_loc=None, line_offset=0, legend_ncol=None, label_order=None,
                     no_extra_legend_space=False, no_tight=False, **legend_args):
         """
-        Finish the current plot, adjusting subplot spacing and adding legend
+        Finish the current plot, adjusting subplot spacing and adding legend if required.
 
-        :param legend_labels: The labels
-        :param legend_loc: The legend location, default from settings
+        :param legend_labels: The labels for a figure legend
+        :param legend_loc: The legend location, default from settings (figure_legend_loc)
         :param line_offset: The offset of plotted lines to label (e.g. 1 to not label first line)
         :param legend_ncol: The number of columns in the legend, defaults to 1
         :param label_order: minus one to show legends in reverse order that lines were added, or a list giving
@@ -2024,7 +2048,7 @@ class GetDistPlotter(_BaseObject):
             marker = self._get_marker(markers, i, param.name)
             no_ticks = share_y and i % self.plot_col > 0
             self.plot_1d(plot_roots, param, no_ytick=no_ticks, no_ylabel=no_ticks, marker=marker,
-                         param_renames=param_renames, title_limit=title_limit, ax=ax, **kwargs)
+                         param_renames=param_renames, title_limit=title_limit, ax=ax, _no_finish=True, **kwargs)
             if xlims is not None:
                 ax.set_xlim(xlims[i][0], xlims[i][1])
 
@@ -2087,7 +2111,7 @@ class GetDistPlotter(_BaseObject):
         for i, pair in enumerate(pairs):
             ax = self._subplot_number(i, pars=pair)
             self.plot_2d(roots, param_pair=pair, filled=filled, shaded=not filled and shaded,
-                         add_legend_proxy=i == 0, ax=ax, **kwargs)
+                         add_legend_proxy=i == 0, ax=ax, _no_finish=True, **kwargs)
 
         self.finish_plot(self._default_legend_labels(legend_labels, roots), legend_ncol=legend_ncol,
                          label_order=label_order)
@@ -2107,7 +2131,8 @@ class GetDistPlotter(_BaseObject):
         plot_col, plot_row = self.make_figure(len(root_params_triplets), nx=nx)
         for i, (root, param1, param2) in enumerate(root_params_triplets):
             ax = self._subplot_number(i, pars=(param1, param2))
-            self.plot_2d(root, param_pair=[param1, param2], filled=filled, add_legend_proxy=i == 0, ax=ax)
+            self.plot_2d(root, param_pair=[param1, param2], filled=filled, add_legend_proxy=i == 0,
+                         ax=ax, _no_finish=True)
             if x_lim is not None:
                 ax.set_xlim(x_lim)
         self.finish_plot()
@@ -2827,6 +2852,7 @@ class GetDistPlotter(_BaseObject):
             g.plot_3d([samples1, samples2], ['x0','x1','x2']);
         """
         roots = makeList(roots)
+        _no_finish = kwargs.pop('_no_finish', False)
         if params_for_plots:
             if params is not None:
                 raise GetDistPlotError('plot_3d uses either params OR params_for_plots')
@@ -2851,6 +2877,8 @@ class GetDistPlotter(_BaseObject):
             lim2 = self._check_param_ranges(roots[0], params[1].name, ylims[0], ylims[1])
             kwargs['lims'] = [lim1[0], lim1[1], lim2[0], lim2[1]]
         self.set_axes(params, ax=ax, **kwargs)
+        if not _no_finish and self.plot_row == 1 and self.plot_col == 1:
+            self.finish_plot()
 
     def plots_3d(self, roots, param_sets, nx=None, legend_labels=None, **kwargs):
         """
@@ -2874,11 +2902,11 @@ class GetDistPlotter(_BaseObject):
         """
         roots = makeList(roots)
         sets = [[self._check_param(roots[0], param) for param in param_group] for param_group in param_sets]
-        plot_col, plot_row = self.make_figure(len(sets), nx=nx, xstretch=1.3)
+        plot_col, plot_row = self.make_figure(len(sets), nx=nx, ystretch=1 / 1.3)
 
         for i, triplet in enumerate(sets):
             ax = self._subplot_number(i, pars=triplet)
-            self.plot_3d(roots, triplet, ax=ax, **kwargs)
+            self.plot_3d(roots, triplet, ax=ax, _no_finish=True, **kwargs)
         self.finish_plot(self._default_legend_labels(legend_labels, roots[1:]))
         return plot_col, plot_row
 
