@@ -1475,14 +1475,15 @@ class MainWindow(QMainWindow):
 
             logging.debug("Plotting with roots = %s" % str(roots))
 
-            height = self.plotWidget.height() / self.logicalDpiX()
-            width = self.plotWidget.width() / self.logicalDpiX()
+            # fudge factor of 0.8 seems to help with overlapping labels on retina Mac.
+            height = self.plotWidget.height() / self.logicalDpiX() *0.8
+            width = self.plotWidget.width() / self.logicalDpiX() *0.8
 
             def setSizeForN(cols, rows):
                 if self.plotter.settings.fig_width_inch is not None:
                     self.plotter.settings.fig_width_inch = min(self.plotter.settings.fig_width_inch, width)
                 else:
-                    self.plotter.settings.fig_width_inch = min(6 * cols, width)
+                    self.plotter.settings.fig_width_inch = width
                 if self.plotter.settings.subplot_size_ratio:
                     self.plotter.settings.fig_width_inch = min(self.plotter.settings.fig_width_inch,
                                                                height * cols / rows /
@@ -1653,7 +1654,6 @@ class MainWindow(QMainWindow):
                 self.toolbar = NavigationToolbar(self.canvas, self)
                 self.plotWidget.layout().addWidget(self.toolbar)
             self.plotWidget.layout().addWidget(self.canvas)
-            self.plotWidget.layout()
             self.plotWidget.show()
 
     def tabChanged(self, index):
