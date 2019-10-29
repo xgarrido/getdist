@@ -2503,8 +2503,8 @@ class GetDistPlotter(_BaseObject):
 
         self.finish_plot(labels, label_order=label_order,
                          legend_ncol=legend_ncol or self.settings.figure_legend_ncol or (
-                             None if upper_roots is None else len(labels)),
-                         legend_loc=legend_loc, no_extra_legend_space=upper_roots is None, no_tight=title_limit,
+                             None if upper_roots is None else len(labels)), legend_loc=legend_loc,
+                         no_extra_legend_space=upper_roots is None, no_tight=title_limit or self.settings.title_limit,
                          **args)
 
     def rectangle_plot(self, xparams, yparams, yroots=None, roots=None, plot_roots=None, plot_texts=None,
